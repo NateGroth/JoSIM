@@ -102,6 +102,15 @@ class Simulation {
   // done; also run by the destructor.
   void finish();
 
+  // D7 / reduce_step support for the stepped path. needs_reduction() is true
+  // when the last step() requested a timestep reduction (a JJ phase guess
+  // jumped too far). reduce_and_restart() halves the timestep, rebuilds the
+  // matrix and re-prepares; the caller must then restart its step() loop from
+  // i=0 (sim_size() changes). This mirrors what the batch constructor does
+  // internally, so a stepped run can match batch on stiff circuits.
+  bool needs_reduction() const { return needsTR_; }
+  void reduce_and_restart(Input& iObj, Matrix& mObj);
+
   // Per-junction electro-thermal access by JoSIM label (aether_sims D1/D2).
   // set_*_temperature drive JJ::update_temperature(); jj_ic reads the current
   // (temperature-dependent) critical current.

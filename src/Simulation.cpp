@@ -194,6 +194,15 @@ void Simulation::trans_sim(Matrix &mObj) {
   }
 }
 
+void Simulation::reduce_and_restart(Input &iObj, Matrix &mObj) {
+  // Free the old factorization, halve the timestep + rebuild (reduce_step),
+  // then re-prepare and re-run the startup. The caller restarts step() at i=0.
+  finish();
+  reduce_step(iObj, mObj);
+  prepare(iObj, mObj);
+  run_startup(mObj);
+}
+
 void Simulation::run_main(Matrix &mObj) {
   // Main loop with hooks, no progress bar -- for the deferred (stepped)
   // C++-callback co-sim path. Startup is assumed already run by the deferred
