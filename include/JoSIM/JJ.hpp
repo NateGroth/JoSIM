@@ -61,6 +61,9 @@ class JJ : public BasicComponent {
   double phaseConst_ = 0.0;
   double lowerB_ = 0.0, upperB_ = 0.0, gLarge_ = 0.0;
   double del0_ = 0.0, del_ = 0.0;
+  // aether_sims D1/D2: base area-scaled values captured at parse time, so the
+  // per-step update_temperature() recomputes from a fixed base (no compounding).
+  double ic0_ = 0.0, rn0_ = 0.0;
   double pn1_ = 0.0, pn2_ = pn1_, pn3_ = pn2_, pn4_ = pn3_, phi0_ = 0.0;
   double vn1_ = 0.0, vn2_ = vn1_, vn3_ = vn2_, vn4_ = vn3_, vn5_ = vn4_,
          vn6_ = vn5_;
@@ -81,6 +84,13 @@ class JJ : public BasicComponent {
   void set_model(const tokens_t& t,
                  const vector_pair_t<Model, string_o>& models,
                  const string_o& subc);
+
+  // aether_sims D1/D2: recompute the temperature-dependent device parameters
+  // (gap del_, Ic(T) via the selected law, Rn, transition conductance, and the
+  // live noise amplitude) for a junction temperature T. A no-op for models
+  // that are not temperature-dependent. Called once at parse time and per step
+  // from the electro-thermal co-sim.
+  void update_temperature(double T);
 
   bool update_value(const double& v);
 

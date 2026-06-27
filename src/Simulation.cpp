@@ -76,6 +76,33 @@ void Simulation::finish() {
   kluReady_ = false;
 }
 
+void Simulation::set_jj_temperature(Matrix &mObj, const std::string &label,
+                                    double T) {
+  for (const auto &j : mObj.components.junctionIndices) {
+    JJ &jj = std::get<JJ>(mObj.components.devices.at(j));
+    if (jj.netlistInfo.label_ == label) {
+      jj.update_temperature(T);
+      return;
+    }
+  }
+}
+
+void Simulation::set_all_temperatures(Matrix &mObj, double T) {
+  for (const auto &j : mObj.components.junctionIndices) {
+    std::get<JJ>(mObj.components.devices.at(j)).update_temperature(T);
+  }
+}
+
+double Simulation::jj_ic(Matrix &mObj, const std::string &label) {
+  for (const auto &j : mObj.components.junctionIndices) {
+    JJ &jj = std::get<JJ>(mObj.components.devices.at(j));
+    if (jj.netlistInfo.label_ == label) {
+      return jj.model_.ic();
+    }
+  }
+  return 0.0;
+}
+
 void Simulation::setup(Input &iObj, Matrix &mObj) {
   // Simulation setup
   simSize_ = iObj.transSim.simsize();

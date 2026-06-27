@@ -25,6 +25,11 @@ class Model {
   double icFct_;
   double phiOff_;
   bool tDep_;
+  // aether_sims D2: selectable Ic(T) law. ictemp_ = 0 -> BCS / Ambegaokar-
+  // Baratoff (default, preserves upstream behaviour); 1 -> YBCO weak link
+  // Ic(T) = Ic0 (1 - T/Tc)^wlpow_.
+  int64_t ictemp_;
+  double wlpow_;
 
  public:
   Model()
@@ -41,7 +46,9 @@ class Model {
         d_(0),
         icFct_(Constants::PI / 4),
         phiOff_(0),
-        tDep_(false){};
+        tDep_(false),
+        ictemp_(0),
+        wlpow_(1.0){};
 
   std::string modelName() const { return modelName_; }
   void modelName(const std::string& n) { modelName_ = n; }
@@ -73,6 +80,10 @@ class Model {
   void phiOff(const double& o) { phiOff_ = o; }
   bool tDep() { return tDep_; }
   void tDep(bool b) { tDep_ = b; }
+  int64_t ictemp() const { return ictemp_; }
+  void ictemp(const int64_t& i) { ictemp_ = i; }
+  double wlpow() const { return wlpow_; }
+  void wlpow(const double& n) { wlpow_ = n; }
   static void parse_model(const std::pair<tokens_t, string_o>& s,
                           vector_pair_t<Model, string_o>& models,
                           const param_map& p);

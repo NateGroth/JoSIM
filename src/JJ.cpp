@@ -209,33 +209,56 @@ void JJ::set_model(const tokens_t& t,
   if (Ic_) {
     area_ = Ic_.value() / model_.ic();
   }
-  // Set the model critical current for this JJ instance
+  // Area-scale the device once, capturing the temperature-independent bases
+  // that the per-step update_temperature() recomputes from (aether_sims D1/D2).
   model_.ic(model_.ic() * area_);
-  if (model_.tDep()) {
-    // Set the Del0 parameter
-    del0_ = 1.76 * Constants::BOLTZMANN * model_.tc();
-    // Set the del parameter
-    del_ = del0_ * sqrt(cos((Constants::PI / 2) * (model_.t() / model_.tc()) *
-                            (model_.t() / model_.tc())));
-    // Set the temperature dependent normal resistance
-    model_.rn(((Constants::PI * del_) / (2 * Constants::EV * model_.ic())) *
-              tanh(del_ / (2 * Constants::BOLTZMANN * model_.t())));
-  } else {
-    // Set the model normal resistance for this JJ instance
-    model_.rn(model_.rn() / area_);
-  }
+  ic0_ = model_.ic();
+  rn0_ = model_.rn() / area_;
   // Set the model capacitance for this JJ instance
   model_.c(model_.c() * area_);
   // Set the model subgap resistance for this JJ instance
   model_.r0(model_.r0() / area_);
-  // Set the lower boundary for the transition region
+  if (model_.tDep()) {
+    // del_, Ic(T), Rn(T) and gLarge_ at the parse-time temperature. A plain
+    // batch run is unchanged; the electro-thermal co-sim calls this per step.
+    update_temperature(model_.t());
+  } else {
+    model_.rn(rn0_);
+    gLarge_ = model_.ic() / (model_.icFct() * model_.deltaV());
+  }
+  // Set the boundaries for the transition region (temperature-independent)
   lowerB_ = model_.vg() - 0.5 * model_.deltaV();
-  // Set the upper boundary for the transition region
   upperB_ = model_.vg() + 0.5 * model_.deltaV();
-  // Set the transitional conductance value
-  gLarge_ = model_.ic() / (model_.icFct() * model_.deltaV());
   if (model_.rtype() == 0) {
     model_.r0(model_.rn());
+  }
+}
+
+void JJ::update_temperature(double T) {
+  // Only temperature-dependent models (T=/TC=/D= in the .model) couple to T.
+  if (!model_.tDep()) return;
+  const double tc = model_.tc();
+  // Gap (JoSIM's BCS approximation).
+  del0_ = 1.76 * Constants::BOLTZMANN * tc;
+  del_ = del0_ * sqrt(cos((Constants::PI / 2) * (T / tc) * (T / tc)));
+  if (model_.ictemp() == 1) {
+    // YBCO weak link: Ic(T) = Ic0 (1 - T/Tc)^n; Rn ~ T-independent (D2).
+    const double frac = (T >= tc) ? 0.0 : (1.0 - T / tc);
+    model_.ic(ic0_ * pow(frac, model_.wlpow()));
+    model_.rn(rn0_);
+  } else {
+    // BCS / Ambegaokar-Baratoff: Ic at its base, Rn(T) from the gap.
+    model_.ic(ic0_);
+    model_.rn(((Constants::PI * del_) / (2 * Constants::EV * ic0_)) *
+              tanh(del_ / (2 * Constants::BOLTZMANN * T)));
+  }
+  // Transition conductance follows Ic.
+  gLarge_ = model_.ic() / (model_.icFct() * model_.deltaV());
+  // Live noise amplitude (the constructor does the initial setup, so only act
+  // once the instance temperature exists).
+  if (temp_) {
+    temp_ = T;
+    spAmp_ = Noise::determine_spectral_amplitude(model_.r0(), T);
   }
 }
 

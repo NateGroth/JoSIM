@@ -63,6 +63,9 @@ void Model::parse_model(const std::pair<tokens_t, string_o>& s,
       tokens_t t = Misc::tokenize(tokens.at(i + 1), ",");
       for (auto& val : t) v.emplace_back(parse_param(val, p, s.second));
       temp.cpr(v);
+    } else if (tokens.at(i) == "ICTEMP") {
+      // aether_sims D2: Ic(T) law selector (string value, not numeric).
+      temp.ictemp(tokens.at(i + 1) == "WEAKLINK" ? 1 : 0);
     } else {
       // Every even odd token should be a value (otherwise complain)
       value = parse_param(tokens.at(i + 1), p, s.second);
@@ -96,6 +99,9 @@ void Model::parse_model(const std::pair<tokens_t, string_o>& s,
         temp.tDep(true);
       } else if (tokens.at(i) == "ICFACT" || tokens.at(i) == "ICFCT") {
         temp.icFct(value);
+      } else if (tokens.at(i) == "N" || tokens.at(i) == "WLN") {
+        // aether_sims D2: weak-link exponent in Ic(T)=Ic0(1-T/Tc)^n.
+        temp.wlpow(value);
       } else if (tokens.at(i) == "PHI") {
         temp.phiOff(value);
       } else {

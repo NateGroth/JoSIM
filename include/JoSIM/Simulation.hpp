@@ -102,6 +102,13 @@ class Simulation {
   // done; also run by the destructor.
   void finish();
 
+  // Per-junction electro-thermal access by JoSIM label (aether_sims D1/D2).
+  // set_*_temperature drive JJ::update_temperature(); jj_ic reads the current
+  // (temperature-dependent) critical current.
+  void set_jj_temperature(Matrix& mObj, const std::string& label, double T);
+  void set_all_temperatures(Matrix& mObj, double T);
+  double jj_ic(Matrix& mObj, const std::string& label);
+
   int64_t sim_size() const { return simSize_; }
   double step_size() const { return stepSize_; }
 };
