@@ -239,6 +239,7 @@ void JJ::update_temperature(double T) {
   if (!model_.tDep()) return;
   const double tc = model_.tc();
   // Gap (JoSIM's BCS approximation).
+  model_.t(T);  // live temperature (used by the BCS supercurrent tanh branch)
   del0_ = 1.76 * Constants::BOLTZMANN * tc;
   del_ = del0_ * sqrt(cos((Constants::PI / 2) * (T / tc) * (T / tc)));
   if (model_.ictemp() == 1) {
@@ -260,6 +261,14 @@ void JJ::update_temperature(double T) {
     temp_ = T;
     spAmp_ = Noise::determine_spectral_amplitude(model_.r0(), T);
   }
+}
+
+void JJ::update_power(double v) {
+  // Resistive (quasiparticle) dissipation P = V^2 / R for the current PWL
+  // state: 0 subgap (R0), 1 transition (~R0), 2 normal (Rn). The supercurrent
+  // and displacement branches are reactive and do not dissipate.
+  const double R = (state_ == 2) ? model_.rn() : model_.r0();
+  power_ = (R > 0.0) ? (v * v) / R : 0.0;
 }
 
 // Update the value based on the matrix entry based on voltage value

@@ -76,15 +76,20 @@ void Simulation::finish() {
   kluReady_ = false;
 }
 
-void Simulation::set_jj_temperature(Matrix &mObj, const std::string &label,
-                                    double T) {
+namespace {
+// Find a junction device by its JoSIM label, or nullptr.
+JJ *find_jj(Matrix &mObj, const std::string &label) {
   for (const auto &j : mObj.components.junctionIndices) {
     JJ &jj = std::get<JJ>(mObj.components.devices.at(j));
-    if (jj.netlistInfo.label_ == label) {
-      jj.update_temperature(T);
-      return;
-    }
+    if (jj.netlistInfo.label_ == label) return &jj;
   }
+  return nullptr;
+}
+}  // namespace
+
+void Simulation::set_jj_temperature(Matrix &mObj, const std::string &label,
+                                    double T) {
+  if (JJ *jj = find_jj(mObj, label)) jj->update_temperature(T);
 }
 
 void Simulation::set_all_temperatures(Matrix &mObj, double T) {
@@ -94,13 +99,39 @@ void Simulation::set_all_temperatures(Matrix &mObj, double T) {
 }
 
 double Simulation::jj_ic(Matrix &mObj, const std::string &label) {
-  for (const auto &j : mObj.components.junctionIndices) {
-    JJ &jj = std::get<JJ>(mObj.components.devices.at(j));
-    if (jj.netlistInfo.label_ == label) {
-      return jj.model_.ic();
-    }
-  }
-  return 0.0;
+  JJ *jj = find_jj(mObj, label);
+  return jj ? jj->model_.ic() : 0.0;
+}
+
+double Simulation::jj_phase(Matrix &mObj, const std::string &label) {
+  JJ *jj = find_jj(mObj, label);
+  if (!jj) return 0.0;
+  if (atyp_ == AnalysisType::Voltage) return x_.at(jj->variableIndex_);
+  // Phase mode: the phase is the node difference.
+  double pp = jj->indexInfo.posIndex_ ? x_.at(jj->indexInfo.posIndex_.value()) : 0.0;
+  double pn = jj->indexInfo.negIndex_ ? x_.at(jj->indexInfo.negIndex_.value()) : 0.0;
+  return pp - pn;
+}
+
+double Simulation::jj_voltage(Matrix &mObj, const std::string &label) {
+  JJ *jj = find_jj(mObj, label);
+  if (!jj) return 0.0;
+  if (atyp_ == AnalysisType::Phase) return x_.at(jj->variableIndex_);
+  // Voltage mode: the voltage is the node difference.
+  double vp = jj->indexInfo.posIndex_ ? x_.at(jj->indexInfo.posIndex_.value()) : 0.0;
+  double vn = jj->indexInfo.negIndex_ ? x_.at(jj->indexInfo.negIndex_.value()) : 0.0;
+  return vp - vn;
+}
+
+double Simulation::jj_current(Matrix &mObj, const std::string &label) {
+  JJ *jj = find_jj(mObj, label);
+  if (!jj || !jj->indexInfo.currentIndex_) return 0.0;
+  return x_.at(jj->indexInfo.currentIndex_.value());
+}
+
+double Simulation::jj_power(Matrix &mObj, const std::string &label) {
+  JJ *jj = find_jj(mObj, label);
+  return jj ? jj->power() : 0.0;
 }
 
 void Simulation::setup(Input &iObj, Matrix &mObj) {
@@ -465,7 +496,11 @@ void Simulation::handle_jj(Matrix &mObj, int64_t &i, double &step,
                     (temp.model_.cpr().at(harm) *
                      sin((harm + 1) * (temp.phi0_ - temp.model_.phiOff())));
     }
-    if (!temp.model_.tDep()) {
+    // aether_sims OQ-2: the plain Ic*sin branch is used for non-temperature
+    // models AND for the YBCO weak link (ictemp == 1), whose supercurrent is
+    // Ic(T)*sin(phi) with Ic(T) from update_temperature(). Only the BCS tDep
+    // model uses the Ambegaokar-Baratoff / Haberkorn branch below.
+    if (!temp.model_.tDep() || temp.model_.ictemp() == 1) {
       // -(hR / h + 2RC) * (Ic sin (φ0) - 2C / h Vp1 + C/2h Vp2 + It)
       b_.at(temp.indexInfo.currentIndex_.value()) =
           (temp.matrixInfo.nonZeros_.back()) *
@@ -504,6 +539,8 @@ void Simulation::handle_jj(Matrix &mObj, int64_t &i, double &step,
            // + It)
            + temp.it_);
     }
+    // aether_sims D3: resistive dissipation from the junction voltage.
+    temp.update_power(temp.vn1_);
     temp.vn2_ = temp.vn1_;
   }
 }

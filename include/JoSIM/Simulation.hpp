@@ -117,6 +117,11 @@ class Simulation {
   void set_jj_temperature(Matrix& mObj, const std::string& label, double T);
   void set_all_temperatures(Matrix& mObj, double T);
   double jj_ic(Matrix& mObj, const std::string& label);
+  // Live per-junction state read from the current solution (call after step()).
+  double jj_phase(Matrix& mObj, const std::string& label);
+  double jj_voltage(Matrix& mObj, const std::string& label);
+  double jj_current(Matrix& mObj, const std::string& label);
+  double jj_power(Matrix& mObj, const std::string& label);
 
   int64_t sim_size() const { return simSize_; }
   double step_size() const { return stepSize_; }

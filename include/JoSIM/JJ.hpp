@@ -68,6 +68,7 @@ class JJ : public BasicComponent {
   double vn1_ = 0.0, vn2_ = vn1_, vn3_ = vn2_, vn4_ = vn3_, vn5_ = vn4_,
          vn6_ = vn5_;
   double it_ = 0.0;
+  double power_ = 0.0;  // aether_sims D3: resistive (quasiparticle) dissipation
   JoSIM::AnalysisType at_;
   std::optional<Function> thermalNoise;
 
@@ -91,6 +92,12 @@ class JJ : public BasicComponent {
   // that are not temperature-dependent. Called once at parse time and per step
   // from the electro-thermal co-sim.
   void update_temperature(double T);
+
+  // aether_sims D3: per-step resistive dissipation P = V^2 / R for the current
+  // quasiparticle PWL state (subgap R0, normal Rn). Computed in handle_jj from
+  // the junction voltage; read back by the thermal co-sim via power().
+  void update_power(double v);
+  double power() const { return power_; }
 
   bool update_value(const double& v);
 
