@@ -16,41 +16,64 @@
 using namespace JoSIM;
 
 Simulation::Simulation(Input &iObj, Matrix &mObj) {
+  // Batch: setup + factor + run the whole transient + free, retrying with a
+  // smaller step if requested. Behaviour-identical to the original loop; the
+  // body is now factored into prepare()/trans_sim()/finish() so the stepped
+  // path can reuse it (aether_sims D4).
   while (needsTR_) {
-    // Do generic simulation setup for given step size
-    setup(iObj, mObj);
-    // Do solver setup
-#ifdef SLU
-    // SLU setup
-    lu.create_matrix(mObj.rp.size() - 1, mObj.nz, mObj.ci, mObj.rp);
-    lu.factorize();
-#else
-    // KLU setup
-    simOK_ = klu_l_defaults(&Common_);
-    assert(simOK_);
-    Symbolic_ = klu_l_analyze(mObj.rp.size() - 1, &mObj.rp.front(),
-                              &mObj.ci.front(), &Common_);
-    Numeric_ = klu_l_factor(&mObj.rp.front(), &mObj.ci.front(),
-                            &mObj.nz.front(), Symbolic_, &Common_);
-#endif
-
-    // Run transient simulation
+    prepare(iObj, mObj);
     trans_sim(mObj);
-    // If step size is too large, reduce and try again
     if (needsTR_) {
       reduce_step(iObj, mObj);
     }
-
-    // Do solver cleanup
-#ifdef SLU
-      // SLU cleanup
-      lu.free();
-#else
-      // KLU cleanup
-      klu_l_free_symbolic(&Symbolic_, &Common_);
-      klu_l_free_numeric(&Numeric_, &Common_);
-#endif
+    finish();
   }
+}
+
+Simulation::Simulation(Input &iObj, Matrix &mObj, bool deferRun) {
+  // Stepped / co-simulation entry (aether_sims D4): do setup + factor and the
+  // pre-t=0 stabilization, then leave the solver factored so the caller can
+  // drive step(i, mObj) in a loop and finish() (or let the destructor free).
+  // No reduce_step retry here -- keep dt small enough (the global restart is a
+  // P3 concern).
+  (void)deferRun;
+  prepare(iObj, mObj);
+  run_startup(mObj);
+}
+
+Simulation::~Simulation() { finish(); }
+
+void Simulation::prepare(Input &iObj, Matrix &mObj) {
+  // Generic setup for the given step size
+  setup(iObj, mObj);
+  // Solver setup
+#ifdef SLU
+  lu.create_matrix(mObj.rp.size() - 1, mObj.nz, mObj.ci, mObj.rp);
+  lu.factorize();
+#else
+  simOK_ = klu_l_defaults(&Common_);
+  assert(simOK_);
+  Symbolic_ = klu_l_analyze(mObj.rp.size() - 1, &mObj.rp.front(),
+                            &mObj.ci.front(), &Common_);
+  Numeric_ = klu_l_factor(&mObj.rp.front(), &mObj.ci.front(), &mObj.nz.front(),
+                          Symbolic_, &Common_);
+#endif
+  kluReady_ = true;
+  // b_ and the time axis are initialized here (moved out of trans_sim) so
+  // step() works whether called from trans_sim or from a stepped driver.
+  results.timeAxis.clear();
+  b_.resize(mObj.rp.size(), 0.0);
+}
+
+void Simulation::finish() {
+  if (!kluReady_) return;
+#ifdef SLU
+  lu.free();
+#else
+  klu_l_free_symbolic(&Symbolic_, &Common_);
+  klu_l_free_numeric(&Numeric_, &Common_);
+#endif
+  kluReady_ = false;
 }
 
 void Simulation::setup(Input &iObj, Matrix &mObj) {
@@ -76,9 +99,47 @@ void Simulation::setup(Input &iObj, Matrix &mObj) {
   }
 }
 
+bool Simulation::solve_only(int64_t i, Matrix &mObj) {
+  // Setup the b matrix, then solve Ax=b into x_. No result storage.
+  setup_b(mObj, i, i * stepSize_);
+  if (needsTR_) return true;
+  x_ = b_;
+#ifdef SLU
+  lu.solve(x_);
+#else
+  simOK_ =
+      klu_l_tsolve(Symbolic_, Numeric_, mObj.rp.size() - 1, 1, &x_.front(),
+                   &Common_);
+  if (!simOK_) Errors::simulation_errors(SimulationErrors::MATRIX_SINGULAR);
+#endif
+  return false;
+}
+
+bool Simulation::step(int64_t i, Matrix &mObj) {
+  // One main-loop transient step: solve, then store the requested traces.
+  if (solve_only(i, mObj)) return true;
+  // Store results (only requested, to prevent massive memory usage)
+  for (int64_t j = 0; j < results.xVector.size(); ++j) {
+    if (results.xVector.at(j)) {
+      results.xVector.at(j).value().emplace_back(x_.at(j));
+    }
+  }
+  // Store the time step
+  results.timeAxis.emplace_back(i * stepSize_);
+  return false;
+}
+
+void Simulation::run_startup(Matrix &mObj) {
+  if (!startup_) return;
+  // Stabilize the simulation before starting at t=0
+  int64_t startup = 2 * pow(10, (abs(log10(stepSize_)) - 12) * 2 + 1);
+  if (startup > 1000) startup = 1000;
+  for (int64_t i = -startup; i < 0; ++i) {
+    if (solve_only(i, mObj)) return;
+  }
+}
+
 void Simulation::trans_sim(Matrix &mObj) {
-  // Ensure time axis is cleared
-  results.timeAxis.clear();
   ProgressBar bar;
   if (!minOut_) {
     bar.create_thread();
@@ -88,64 +149,33 @@ void Simulation::trans_sim(Matrix &mObj) {
     bar.set_status_text("Simulating");
     bar.set_total((float)simSize_);
   }
-  // Initialize the b matrix
-  b_.resize(mObj.rp.size(), 0.0);
-  if (startup_) {
-    // Stabilize the simulation before starting at t=0
-    int64_t startup = 2 * pow(10, (abs(log10(stepSize_)) - 12) * 2 + 1);
-    if (startup > 1000) startup = 1000;
-    for (int64_t i = -startup; i < 0; ++i) {
-      double step = i * stepSize_;
-      // Setup the b matrix
-      setup_b(mObj, i, i * stepSize_);
-      if (needsTR_) return;
-      // Assign x_prev the new b
-      x_ = b_;
-      // Solve Ax=b, storing the results in x_
-#ifdef SLU
-        lu.solve(x_);
-#else
-        simOK_ = klu_l_tsolve(Symbolic_, Numeric_, mObj.rp.size() - 1, 1,
-                              &x_.front(), &Common_);
-        // If anything is a amiss, complain about it
-        if (!simOK_)
-          Errors::simulation_errors(SimulationErrors::MATRIX_SINGULAR);
-#endif
-    }
-  }
+  run_startup(mObj);
+  if (needsTR_) return;
   // Start the simulation loop
   for (int64_t i = 0; i < simSize_; ++i) {
-    double step = i * stepSize_;
-    // If not minimal printing report progress
     if (!minOut_) {
       bar.update(static_cast<float>(i));
     }
-    // Setup the b matrix
-    setup_b(mObj, i, i * stepSize_);
-    if (needsTR_) return;
-    // Assign x_prev the new b
-    x_ = b_;
-    // Solve Ax=b, storing the results in x_
-#ifdef SLU
-      lu.solve(x_);
-#else
-      simOK_ = klu_l_tsolve(Symbolic_, Numeric_, mObj.rp.size() - 1, 1,
-                            &x_.front(), &Common_);
-      // If anything is a amiss, complain about it
-      if (!simOK_) Errors::simulation_errors(SimulationErrors::MATRIX_SINGULAR);
-#endif
-    // Store results (only requested, to prevent massive memory usage)
-    for (int64_t j = 0; j < results.xVector.size(); ++j) {
-      if (results.xVector.at(j)) {
-        results.xVector.at(j).value().emplace_back(x_.at(j));
-      }
-    }
-    // Store the time step
-    results.timeAxis.emplace_back(step);
+    double t = i * stepSize_;
+    if (pre_step_hook_) pre_step_hook_(i, t);
+    if (step(i, mObj)) return;
+    if (post_step_hook_) post_step_hook_(i, t);
   }
   if (!minOut_) {
     bar.complete();
     std::cout << "\n";
+  }
+}
+
+void Simulation::run_main(Matrix &mObj) {
+  // Main loop with hooks, no progress bar -- for the deferred (stepped)
+  // C++-callback co-sim path. Startup is assumed already run by the deferred
+  // constructor.
+  for (int64_t i = 0; i < simSize_; ++i) {
+    double t = i * stepSize_;
+    if (pre_step_hook_) pre_step_hook_(i, t);
+    if (step(i, mObj)) return;
+    if (post_step_hook_) post_step_hook_(i, t);
   }
 }
 
