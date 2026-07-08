@@ -116,6 +116,11 @@ class Simulation {
   // (temperature-dependent) critical current.
   void set_jj_temperature(Matrix& mObj, const std::string& label, double T);
   void set_all_temperatures(Matrix& mObj, double T);
+  // aether_sims D8: drive a junction's Ic(Ictrl) law with an explicit control
+  // current (static trim / Python-hook path). Junctions with a CTRL= netlist
+  // binding are instead fed by the engine after every solve.
+  void set_jj_control_current(Matrix& mObj, const std::string& label,
+                              double ictrl);
   double jj_ic(Matrix& mObj, const std::string& label);
   // Live per-junction state read from the current solution (call after step()).
   double jj_phase(Matrix& mObj, const std::string& label);

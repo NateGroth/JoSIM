@@ -35,6 +35,10 @@ class Components {
       capacitorIndices, vsIndices, psIndices, txIndices, vccsIndices,
       cccsIndices, vcvsIndices, ccvsIndices;
   std::vector<std::pair<tokens_t, string_o>> mutualinductances;
+  // aether_sims D8: resolved CTRL= couplings -- (device index of the driven
+  // junction, x-vector index of the control junction's branch current). The
+  // engine feeds each pair after every solve (Simulation::solve_only).
+  std::vector<std::pair<int64_t, int64_t>> ctrlCouplings;
 };  // class Components
 
 }  // namespace JoSIM

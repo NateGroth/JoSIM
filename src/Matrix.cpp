@@ -28,6 +28,33 @@ void Matrix::create_matrix(Input& iObj) {
   }
   // Handle mutual inductances
   handle_mutual_inductance(iObj);
+  // Resolve CTRL= multiterminal couplings (aether_sims D8): map each driven
+  // junction to its control junction's branch-current index. Rebuilt from
+  // scratch so a reduce_step rebuild re-resolves cleanly.
+  components.ctrlCouplings.clear();
+  for (const auto& j : components.junctionIndices) {
+    auto& jj = std::get<JJ>(components.devices.at(j));
+    if (!jj.ctrlLabel_) continue;
+    const std::string& want = jj.ctrlLabel_.value();
+    if (want == jj.netlistInfo.label_) {  // self-coupling is meaningless
+      Errors::invalid_component_errors(ComponentErrors::UNKNOWN_CONTROL_JJ,
+                                       want + " (self)");
+    }
+    bool found = false;
+    for (const auto& k : components.junctionIndices) {
+      auto& ctrl = std::get<JJ>(components.devices.at(k));
+      if (ctrl.netlistInfo.label_ == want) {
+        components.ctrlCouplings.emplace_back(
+            j, ctrl.indexInfo.currentIndex_.value());
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      Errors::invalid_component_errors(ComponentErrors::UNKNOWN_CONTROL_JJ,
+                                       want);
+    }
+  }
   // Create the compressed storage row format required for simulation
   create_csr();
 }

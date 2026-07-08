@@ -68,7 +68,8 @@ enum class ComponentErrors : int64_t {
   INVALID_TX_RESOLUTION,
   MISSING_INDUCTOR,
   UNKNOWN_DEVICE_TYPE,
-  SPECIAL_CHARS
+  SPECIAL_CHARS,
+  UNKNOWN_CONTROL_JJ
 };
 
 enum class ControlErrors : int64_t {

@@ -60,6 +60,13 @@ JJ::JJ(const std::pair<tokens_t, string_o>& s, const NodeConfig& ncon,
       Ic_ = spread.spread_value(
           parse_param(ti.substr(3), iObj.parameters, s.second), Spread::JJ,
           spr);
+    } else if (ti.rfind("CTRL=", 0) == 0) {
+      // aether_sims D8: label of the control junction whose branch current
+      // drives this junction's Ic(Ictrl) law. Per-instance (like TEMP=): the
+      // law lives in the model, the wiring on the device line. Resolved
+      // against expanded labels in Matrix::create_matrix (flat netlists; in
+      // subcircuits the expanded label must be given).
+      ctrlLabel_ = ti.substr(5);
     } else {
       t.emplace_back(ti);
     }
@@ -226,6 +233,12 @@ void JJ::set_model(const tokens_t& t,
     model_.rn(rn0_);
     gLarge_ = model_.ic() / (model_.icFct() * model_.deltaV());
   }
+  // Parse-time control scale at Ictrl = 0 (aether_sims D8). g(0) is normally
+  // 1 (the fitted law is normalized to the zero-control Ic); a no-op without
+  // an ICCTRL law.
+  if (model_.icctrl() != 0) {
+    update_control_current(0.0);
+  }
   // Set the boundaries for the transition region (temperature-independent)
   lowerB_ = model_.vg() - 0.5 * model_.deltaV();
   upperB_ = model_.vg() + 0.5 * model_.deltaV();
@@ -244,12 +257,16 @@ void JJ::update_temperature(double T) {
   del_ = del0_ * sqrt(cos((Constants::PI / 2) * (T / tc) * (T / tc)));
   if (model_.ictemp() == 1) {
     // YBCO weak link: Ic(T) = Ic0 (1 - T/Tc)^n; Rn ~ T-independent (D2).
+    // ctrlScale_ composes multiplicatively (D8): both laws rescale the same
+    // fixed base ic0_, so neither compounds across steps.
     const double frac = (T >= tc) ? 0.0 : (1.0 - T / tc);
-    model_.ic(ic0_ * pow(frac, model_.wlpow()));
+    model_.ic(ic0_ * pow(frac, model_.wlpow()) * ctrlScale_);
     model_.rn(rn0_);
   } else {
-    // BCS / Ambegaokar-Baratoff: Ic at its base, Rn(T) from the gap.
-    model_.ic(ic0_);
+    // BCS / Ambegaokar-Baratoff: Ic at its base, Rn(T) from the gap. The
+    // supercurrent branch computes its own prefactor from del_/Rn in
+    // handle_jj, where ctrlScale_ (D8) is applied directly.
+    model_.ic(ic0_ * ctrlScale_);
     model_.rn(((Constants::PI * del_) / (2 * Constants::EV * ic0_)) *
               tanh(del_ / (2 * Constants::BOLTZMANN * T)));
   }
@@ -260,6 +277,24 @@ void JJ::update_temperature(double T) {
   if (temp_) {
     temp_ = T;
     spAmp_ = Noise::determine_spectral_amplitude(model_.r0(), T);
+  }
+}
+
+void JJ::update_control_current(double ictrl) {
+  // aether_sims D8: phenomenological Ic(Ictrl). Memoryless -- ctrlScale_ is a
+  // pure function of the instantaneous control current (spec constraint until
+  // D7 lands: a reduce_step restart discards coupling history exactly as it
+  // does thermal state, so nothing here may accumulate).
+  if (model_.icctrl() == 0) return;
+  ctrlScale_ = model_.ctrl_scale(ictrl);
+  if (model_.tDep()) {
+    // Recompute Ic through the Ic(T) path so the two laws compose (D1/D2
+    // stacking): update_temperature applies ctrlScale_ on the fixed base.
+    update_temperature(model_.t());
+  } else {
+    model_.ic(ic0_ * ctrlScale_);
+    // Transition conductance follows Ic (as in update_temperature).
+    gLarge_ = model_.ic() / (model_.icFct() * model_.deltaV());
   }
 }
 

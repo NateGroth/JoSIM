@@ -64,6 +64,13 @@ class JJ : public BasicComponent {
   // aether_sims D1/D2: base area-scaled values captured at parse time, so the
   // per-step update_temperature() recomputes from a fixed base (no compounding).
   double ic0_ = 0.0, rn0_ = 0.0;
+  // aether_sims D8: multiterminal coupling. ctrlLabel_ is the JoSIM label of
+  // the control junction named by CTRL= on the device line (resolved to a
+  // branch-current index in Matrix::create_matrix); ctrlScale_ is the current
+  // value of the model's Ic(Ictrl) suppression factor g. It composes
+  // multiplicatively with Ic(T): both recompute from the fixed base ic0_.
+  string_o ctrlLabel_;
+  double ctrlScale_ = 1.0;
   double pn1_ = 0.0, pn2_ = pn1_, pn3_ = pn2_, pn4_ = pn3_, phi0_ = 0.0;
   double vn1_ = 0.0, vn2_ = vn1_, vn3_ = vn2_, vn4_ = vn3_, vn5_ = vn4_,
          vn6_ = vn5_;
@@ -92,6 +99,14 @@ class JJ : public BasicComponent {
   // that are not temperature-dependent. Called once at parse time and per step
   // from the electro-thermal co-sim.
   void update_temperature(double T);
+
+  // aether_sims D8: recompute the phenomenological Ic(Ictrl) suppression for
+  // a control branch current Ictrl (spec: same posture as update_temperature;
+  // memoryless -- a pure function of the instantaneous control current). A
+  // no-op for models without an ICCTRL law. Called at parse time (Ictrl=0),
+  // per step by the engine for CTRL=-coupled junctions, and on demand from
+  // pyjosim (static trim, OQ-8's yield-study variant).
+  void update_control_current(double ictrl);
 
   // aether_sims D3: per-step resistive dissipation P = V^2 / R for the current
   // quasiparticle PWL state (subgap R0, normal Rn). Computed in handle_jj from

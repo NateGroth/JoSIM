@@ -66,6 +66,23 @@ void Model::parse_model(const std::pair<tokens_t, string_o>& s,
     } else if (tokens.at(i) == "ICTEMP") {
       // aether_sims D2: Ic(T) law selector (string value, not numeric).
       temp.ictemp(tokens.at(i + 1) == "WEAKLINK" ? 1 : 0);
+    } else if (tokens.at(i) == "ICCTRL") {
+      // aether_sims D8: Ic(Ictrl) law selector (string value, not numeric).
+      temp.icctrl(tokens.at(i + 1) == "POLY"    ? 1
+                  : tokens.at(i + 1) == "TABLE" ? 2
+                                                : 0);
+    } else if (tokens.at(i) == "CTRLCOEF") {
+      // aether_sims D8: POLY fit coefficients {c0,c1,...} over x=I/CTRLN.
+      std::vector<double> v;
+      tokens_t t = Misc::tokenize(tokens.at(i + 1), ",");
+      for (auto& val : t) v.emplace_back(parse_param(val, p, s.second));
+      temp.ctrlCoef(v);
+    } else if (tokens.at(i) == "CTRLTAB") {
+      // aether_sims D8: TABLE law {x1,g1,x2,g2,...} over x=I/CTRLN.
+      std::vector<double> v;
+      tokens_t t = Misc::tokenize(tokens.at(i + 1), ",");
+      for (auto& val : t) v.emplace_back(parse_param(val, p, s.second));
+      temp.ctrlTab(v);
     } else {
       // Every even odd token should be a value (otherwise complain)
       value = parse_param(tokens.at(i + 1), p, s.second);
@@ -102,6 +119,10 @@ void Model::parse_model(const std::pair<tokens_t, string_o>& s,
       } else if (tokens.at(i) == "N" || tokens.at(i) == "WLN") {
         // aether_sims D2: weak-link exponent in Ic(T)=Ic0(1-T/Tc)^n.
         temp.wlpow(value);
+      } else if (tokens.at(i) == "CTRLN") {
+        // aether_sims D8: control-current normalization (amps) for the
+        // Ic(Ictrl) law; also the edge of the fitted domain.
+        temp.ctrlNorm(value);
       } else if (tokens.at(i) == "PHI") {
         temp.phiOff(value);
       } else {

@@ -311,6 +311,13 @@ void Errors::invalid_component_errors(ComponentErrors errorCode,
       formattedMessage += "Continuing operation.";
       warning_message(formattedMessage);
       break;
+    case ComponentErrors::UNKNOWN_CONTROL_JJ:
+      formattedMessage +=
+          "Unknown control junction in CTRL=" + message.value_or("") + "\n";
+      formattedMessage +=
+          "CTRL must name another junction (its expanded JoSIM label, e.g. "
+          "CTRL=B2) whose branch current drives this junction's ICCTRL law.";
+      throw std::runtime_error(formattedMessage);
     default:
       formattedMessage += "Unknown invalid component error.\n";
       formattedMessage += "Please contact the developer.";

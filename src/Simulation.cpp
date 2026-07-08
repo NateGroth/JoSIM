@@ -98,6 +98,14 @@ void Simulation::set_all_temperatures(Matrix &mObj, double T) {
   }
 }
 
+void Simulation::set_jj_control_current(Matrix &mObj, const std::string &label,
+                                        double ictrl) {
+  // aether_sims D8: drive a junction's Ic(Ictrl) law directly (the static
+  // per-junction trim of OQ-8 / the Python-hook co-sim path). For junctions
+  // with a CTRL= binding the engine overwrites this after every solve.
+  if (JJ *jj = find_jj(mObj, label)) jj->update_control_current(ictrl);
+}
+
 double Simulation::jj_ic(Matrix &mObj, const std::string &label) {
   JJ *jj = find_jj(mObj, label);
   return jj ? jj->model_.ic() : 0.0;
@@ -170,6 +178,15 @@ bool Simulation::solve_only(int64_t i, Matrix &mObj) {
                    &Common_);
   if (!simOK_) Errors::simulation_errors(SimulationErrors::MATRIX_SINGULAR);
 #endif
+  // aether_sims D8: feed each CTRL=-coupled junction the control branch
+  // current from this solve; its Ic(Ictrl) applies from the next step.
+  // Memoryless one-step-lag coupling -- the engine-native equivalent of the
+  // spec's post_step (read Ictrl) -> pre_step (push Ic) hook pair, and it runs
+  // on every path (batch, run_main, stepped and startup).
+  for (const auto& cp : mObj.components.ctrlCouplings) {
+    std::get<JJ>(mObj.components.devices.at(cp.first))
+        .update_control_current(x_.at(cp.second));
+  }
   return false;
 }
 
@@ -524,7 +541,10 @@ void Simulation::handle_jj(Matrix &mObj, int64_t &i, double &step,
           // -(hR / h + 2RC) *(
           (temp.matrixInfo.nonZeros_.back()) *
           ((
-               // (π * Δ / 2 * e * Rn)
+               // (π * Δ / 2 * e * Rn) * g(Ictrl)  [ctrlScale_: aether_sims D8
+               // -- this branch's supercurrent amplitude comes from del_/Rn,
+               // not model_.ic(), so the control trim applies here directly]
+               temp.ctrlScale_ *
                ((Constants::PI * temp.del_) /
                 (2 * Constants::EV * temp.model_.rn()))
                // * (sin(φ0 - φ) / √(1 - D * sin²((φ0 - φ) / 2))
