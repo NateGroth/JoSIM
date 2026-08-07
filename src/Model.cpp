@@ -123,6 +123,13 @@ void Model::parse_model(const std::pair<tokens_t, string_o>& s,
         // aether_sims D8: control-current normalization (amps) for the
         // Ic(Ictrl) law; also the edge of the fitted domain.
         temp.ctrlNorm(value);
+      } else if (tokens.at(i) == "CTRLODD") {
+        // aether_sims T4-D9: odd fraction of the signed coupling law.
+        temp.ctrlOdd(value);
+      } else if (tokens.at(i) == "CTRLLAG") {
+        // aether_sims T3: first-order coupling lag tau (seconds); 0 = the
+        // memoryless D8 law.
+        temp.ctrlLag(value);
       } else if (tokens.at(i) == "PHI") {
         temp.phiOff(value);
       } else {

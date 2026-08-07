@@ -42,6 +42,13 @@ class Model {
   double ctrlNorm_;
   std::vector<double> ctrlCoef_;
   std::vector<double> ctrlTab_;
+  // aether_sims T3: first-order lag (seconds) on the Ic(Ictrl) coupling --
+  // the control current seen by the law is a low-pass of the branch current.
+  // 0 (default) = memoryless D8 semantics, bit-exact legacy behavior.
+  double ctrlLag_;
+  // aether_sims T4-D9: odd fraction s of the signed coupling law
+  // Ic_eff+- = Ic0*[(1-s)*f_even(|x|) + s*(1 -+ x)]; 0 = legacy even law.
+  double ctrlOdd_;
 
  public:
   Model()
@@ -64,7 +71,9 @@ class Model {
         icctrl_(0),
         ctrlNorm_(1.0),
         ctrlCoef_({1.0}),
-        ctrlTab_({}){};
+        ctrlTab_({}),
+        ctrlLag_(0.0),
+        ctrlOdd_(0.0){};
 
   std::string modelName() const { return modelName_; }
   void modelName(const std::string& n) { modelName_ = n; }
@@ -104,6 +113,10 @@ class Model {
   void icctrl(const int64_t& i) { icctrl_ = i; }
   double ctrlNorm() const { return ctrlNorm_; }
   void ctrlNorm(const double& n) { ctrlNorm_ = n; }
+  double ctrlLag() const { return ctrlLag_; }
+  void ctrlLag(const double& l) { ctrlLag_ = l; }
+  double ctrlOdd() const { return ctrlOdd_; }
+  void ctrlOdd(const double& s) { ctrlOdd_ = s; }
   const std::vector<double>& ctrlCoef() const { return ctrlCoef_; }
   void ctrlCoef(const std::vector<double>& c) { ctrlCoef_ = c; }
   const std::vector<double>& ctrlTab() const { return ctrlTab_; }

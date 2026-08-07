@@ -185,7 +185,7 @@ bool Simulation::solve_only(int64_t i, Matrix &mObj) {
   // on every path (batch, run_main, stepped and startup).
   for (const auto& cp : mObj.components.ctrlCouplings) {
     std::get<JJ>(mObj.components.devices.at(cp.first))
-        .update_control_current(x_.at(cp.second));
+        .update_control_current_lagged(x_.at(cp.second), stepSize_);
   }
   return false;
 }
@@ -521,7 +521,8 @@ void Simulation::handle_jj(Matrix &mObj, int64_t &i, double &step,
       // -(hR / h + 2RC) * (Ic sin (φ0) - 2C / h Vp1 + C/2h Vp2 + It)
       b_.at(temp.indexInfo.currentIndex_.value()) =
           (temp.matrixInfo.nonZeros_.back()) *
-          (ic_sin_phi - (((2 * model.c()) / (stepSize_)) * temp.vn1_) +
+          (ic_sin_phi + temp.ctrlOffs_ -
+           (((2 * model.c()) / (stepSize_)) * temp.vn1_) +
            ((model.c() / (2.0 * (stepSize_))) * temp.vn2_) + temp.it_);
     } else {
       double sin2_half_phi = 0.0;

@@ -286,7 +286,23 @@ void JJ::update_control_current(double ictrl) {
   // D7 lands: a reduce_step restart discards coupling history exactly as it
   // does thermal state, so nothing here may accumulate).
   if (model_.icctrl() == 0) return;
-  ctrlScale_ = model_.ctrl_scale(ictrl);
+  const double s_odd = model_.ctrlOdd();
+  if (s_odd <= 0.0) {
+    ctrlScale_ = model_.ctrl_scale(ictrl);
+  } else {
+    // aether_sims T4-D9 signed law: amplitude (1-s)*f_even + s plus a
+    // washboard-tilt offset -s*Ic_base(T)*x, so Ic+- = Ic0*[(1-s)*f_even
+    // -+ ... ] per polarity. Offset scales with the scale-free Ic(T) base.
+    double x = (model_.ctrlNorm() != 0.0) ? ictrl / model_.ctrlNorm() : 0.0;
+    if (x > 1.0) x = 1.0;
+    if (x < -1.0) x = -1.0;
+    ctrlScale_ = (1.0 - s_odd) * model_.ctrl_scale(ictrl) + s_odd;
+    double base = ic0_;
+    if (model_.tDep() && model_.ictemp() == 1) {
+      base = ic0_ * pow(1.0 - model_.t() / model_.tc(), model_.wlpow());
+    }
+    ctrlOffs_ = -s_odd * base * x;
+  }
   if (model_.tDep()) {
     // Recompute Ic through the Ic(T) path so the two laws compose (D1/D2
     // stacking): update_temperature applies ctrlScale_ on the fixed base.
@@ -296,6 +312,20 @@ void JJ::update_control_current(double ictrl) {
     // Transition conductance follows Ic (as in update_temperature).
     gLarge_ = model_.ic() / (model_.icFct() * model_.deltaV());
   }
+}
+
+void JJ::update_control_current_lagged(double ictrl, double dt) {
+  // aether_sims T3: first-order lag on the coupling law. tau <= 0 keeps the
+  // memoryless D8 semantics bit-exactly (explicit passthrough, no float
+  // round-trip through the filter arithmetic).
+  const double tau = model_.ctrlLag();
+  if (tau <= 0.0) {
+    ictrlFilt_ = ictrl;
+    update_control_current(ictrl);
+    return;
+  }
+  ictrlFilt_ += (dt / (tau + dt)) * (ictrl - ictrlFilt_);
+  update_control_current(ictrlFilt_);
 }
 
 void JJ::update_power(double v) {

@@ -71,6 +71,13 @@ class JJ : public BasicComponent {
   // multiplicatively with Ic(T): both recompute from the fixed base ic0_.
   string_o ctrlLabel_;
   double ctrlScale_ = 1.0;
+  // aether_sims T3: low-pass state of the control current when the model
+  // carries CTRLLAG > 0 (first-order lag on the coupling law). Stateful by
+  // design -- carries the same reduce_step caveat as thermal state.
+  double ictrlFilt_ = 0.0;
+  // aether_sims T4-D9: washboard-tilt offset of the signed coupling law
+  // (added to the supercurrent term; makes Ic+ != Ic-).
+  double ctrlOffs_ = 0.0;
   double pn1_ = 0.0, pn2_ = pn1_, pn3_ = pn2_, pn4_ = pn3_, phi0_ = 0.0;
   double vn1_ = 0.0, vn2_ = vn1_, vn3_ = vn2_, vn4_ = vn3_, vn5_ = vn4_,
          vn6_ = vn5_;
@@ -107,6 +114,10 @@ class JJ : public BasicComponent {
   // per step by the engine for CTRL=-coupled junctions, and on demand from
   // pyjosim (static trim, OQ-8's yield-study variant).
   void update_control_current(double ictrl);
+  // aether_sims T3: per-step entry for CTRL=-coupled junctions -- applies
+  // the model's first-order CTRLLAG filter (tau<=0: bit-exact passthrough
+  // to the memoryless D8 law) before recomputing Ic.
+  void update_control_current_lagged(double ictrl, double dt);
 
   // aether_sims D3: per-step resistive dissipation P = V^2 / R for the current
   // quasiparticle PWL state (subgap R0, normal Rn). Computed in handle_jj from
