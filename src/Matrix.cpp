@@ -50,6 +50,19 @@ void Matrix::create_matrix(Input& iObj) {
         break;
       }
     }
+    // aether_sims D11: a memristor branch current may drive the Ic(Ictrl)
+    // law too (the memristive-trim read path) -- same x-vector semantics.
+    if (!found) {
+      for (const auto& k : components.memristorIndices) {
+        auto& ctrl = std::get<Memristor>(components.devices.at(k));
+        if (ctrl.netlistInfo.label_ == want) {
+          components.ctrlCouplings.emplace_back(
+              j, ctrl.indexInfo.currentIndex_.value());
+          found = true;
+          break;
+        }
+      }
+    }
     if (!found) {
       Errors::invalid_component_errors(ComponentErrors::UNKNOWN_CONTROL_JJ,
                                        want);
@@ -180,6 +193,15 @@ void Matrix::create_components(Input& iObj) {
             i, nodeConfig.at(cc), nm, lm, nc, iObj, spread, branchIndex));
         // Store this resistor's component list index for reference
         components.resistorIndices.emplace_back(components.devices.size() - 1);
+        break;
+        // Memristors (aether_sims D11)
+      case 'Y':
+        // Create a memristor and add it to the component list
+        components.devices.emplace_back(Memristor(
+            i, nodeConfig.at(cc), nm, lm, nc, iObj, spread, branchIndex));
+        // Store this memristor's component list index for reference
+        components.memristorIndices.emplace_back(components.devices.size() -
+                                                 1);
         break;
         // Current Source
       case 'I':

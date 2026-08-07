@@ -49,6 +49,28 @@ class Model {
   // aether_sims T4-D9: odd fraction s of the signed coupling law
   // Ic_eff+- = Ic0*[(1-s)*f_even(|x|) + s*(1 -+ x)]; 0 = legacy even law.
   double ctrlOdd_;
+  // aether_sims D11: model discriminator. 0 = JJ (upstream semantics,
+  // untouched); 1 = MEMRISTOR (cuprate trap-based compact model,
+  // Guenkel et al. Adv. Electron. Mater. 2026 e00861). Memristor models
+  // reuse this class so the single .MODEL parse/lookup path serves both.
+  int64_t mtype_;
+  // -- D11 memristor parameters (valid when mtype_ == 1) ----------------
+  double mrRmax_;    //: HRS resistance at Tcal (ohm)
+  double mrRmin_;    //: LRS resistance at Tcal (ohm)
+  double mrMmax_;    //: HRS SCLC exponent at Tcal
+  double mrMmin_;    //: LRS SCLC exponent (T-independent, paper Table 1)
+  double mrKp0_;     //: potentiation rate prefactor ((A)^-alpha / s)
+  double mrAlpha_;   //: potentiation current exponent
+  double mrKd0_;     //: depression rate prefactor (1/s)
+  double mrEtad_;    //: depression field-acceleration (1/V)
+  double mrVlog_;    //: gmin logistic center (V)
+  double mrXi_;      //: gmin logistic width (V)
+  double mrTcal_;    //: calibration temperature of the R/m values (K)
+  double mrAh_;      //: HRS resistance T-slope, Rmax ~ exp(-AH (T-Tcal))
+  double mrAl_;      //: LRS resistance T-slope, Rmin ~ exp(+AL (T-Tcal))
+  double mrTrmin_;   //: calibration-range lower bound (K)
+  double mrTrmax_;   //: calibration-range upper bound (K)
+  double mrTscale_;  //: rate time-scale factor (test economy; law-invariant)
 
  public:
   Model()
@@ -73,7 +95,27 @@ class Model {
         ctrlCoef_({1.0}),
         ctrlTab_({}),
         ctrlLag_(0.0),
-        ctrlOdd_(0.0){};
+        ctrlOdd_(0.0),
+        mtype_(0),
+        // D11 defaults: paper Table 1 at 150 K with Kd0/etad/Vlog/xi held
+        // T-independent; AH/AL from the Table-1 150->300 K endpoints;
+        // calibration range = the fitted 150-300 K.
+        mrRmax_(1.5E6),
+        mrRmin_(1.25E4),
+        mrMmax_(4.2),
+        mrMmin_(3.0),
+        mrKp0_(1E23),
+        mrAlpha_(5.0),
+        mrKd0_(1.5),
+        mrEtad_(0.75),
+        mrVlog_(1.6),
+        mrXi_(0.25),
+        mrTcal_(150.0),
+        mrAh_(0.012077),
+        mrAl_(0.0068635),
+        mrTrmin_(150.0),
+        mrTrmax_(300.0),
+        mrTscale_(1.0){};
 
   std::string modelName() const { return modelName_; }
   void modelName(const std::string& n) { modelName_ = n; }
@@ -121,6 +163,41 @@ class Model {
   void ctrlCoef(const std::vector<double>& c) { ctrlCoef_ = c; }
   const std::vector<double>& ctrlTab() const { return ctrlTab_; }
   void ctrlTab(const std::vector<double>& t) { ctrlTab_ = t; }
+  // -- D11 memristor accessors ------------------------------------------
+  int64_t mtype() const { return mtype_; }
+  void mtype(const int64_t& m) { mtype_ = m; }
+  double mrRmax() const { return mrRmax_; }
+  void mrRmax(const double& v) { mrRmax_ = v; }
+  double mrRmin() const { return mrRmin_; }
+  void mrRmin(const double& v) { mrRmin_ = v; }
+  double mrMmax() const { return mrMmax_; }
+  void mrMmax(const double& v) { mrMmax_ = v; }
+  double mrMmin() const { return mrMmin_; }
+  void mrMmin(const double& v) { mrMmin_ = v; }
+  double mrKp0() const { return mrKp0_; }
+  void mrKp0(const double& v) { mrKp0_ = v; }
+  double mrAlpha() const { return mrAlpha_; }
+  void mrAlpha(const double& v) { mrAlpha_ = v; }
+  double mrKd0() const { return mrKd0_; }
+  void mrKd0(const double& v) { mrKd0_ = v; }
+  double mrEtad() const { return mrEtad_; }
+  void mrEtad(const double& v) { mrEtad_ = v; }
+  double mrVlog() const { return mrVlog_; }
+  void mrVlog(const double& v) { mrVlog_ = v; }
+  double mrXi() const { return mrXi_; }
+  void mrXi(const double& v) { mrXi_ = v; }
+  double mrTcal() const { return mrTcal_; }
+  void mrTcal(const double& v) { mrTcal_ = v; }
+  double mrAh() const { return mrAh_; }
+  void mrAh(const double& v) { mrAh_ = v; }
+  double mrAl() const { return mrAl_; }
+  void mrAl(const double& v) { mrAl_ = v; }
+  double mrTrmin() const { return mrTrmin_; }
+  void mrTrmin(const double& v) { mrTrmin_ = v; }
+  double mrTrmax() const { return mrTrmax_; }
+  void mrTrmax(const double& v) { mrTrmax_ = v; }
+  double mrTscale() const { return mrTscale_; }
+  void mrTscale(const double& v) { mrTscale_ = v; }
   // aether_sims D8: evaluate the dimensionless suppression factor g(Ictrl).
   // Memoryless by construction (pure function of the instantaneous control
   // current -- required until D7 per-step LTE control lands, since a

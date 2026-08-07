@@ -14,6 +14,7 @@
 #include "JoSIM/Inductor.hpp"
 #include "JoSIM/Input.hpp"
 #include "JoSIM/JJ.hpp"
+#include "JoSIM/Memristor.hpp"
 #include "JoSIM/Misc.hpp"
 #include "JoSIM/Parameters.hpp"
 #include "JoSIM/PhaseSource.hpp"
@@ -28,12 +29,13 @@ class Components {
  public:
   std::vector<
       std::variant<Resistor, Inductor, Capacitor, JJ, VoltageSource,
-                   PhaseSource, TransmissionLine, VCCS, CCCS, VCVS, CCVS>>
+                   PhaseSource, TransmissionLine, VCCS, CCCS, VCVS, CCVS,
+                   Memristor>>
       devices;
   std::vector<CurrentSource> currentsources;
   std::vector<int64_t> junctionIndices, resistorIndices, inductorIndices,
       capacitorIndices, vsIndices, psIndices, txIndices, vccsIndices,
-      cccsIndices, vcvsIndices, ccvsIndices;
+      cccsIndices, vcvsIndices, ccvsIndices, memristorIndices;
   std::vector<std::pair<tokens_t, string_o>> mutualinductances;
   // aether_sims D8: resolved CTRL= couplings -- (device index of the driven
   // junction, x-vector index of the control junction's branch current). The

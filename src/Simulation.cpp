@@ -85,6 +85,14 @@ JJ *find_jj(Matrix &mObj, const std::string &label) {
   }
   return nullptr;
 }
+
+Memristor *find_memristor(Matrix &mObj, const std::string &label) {
+  for (const auto &j : mObj.components.memristorIndices) {
+    Memristor &m = std::get<Memristor>(mObj.components.devices.at(j));
+    if (m.netlistInfo.label_ == label) return &m;
+  }
+  return nullptr;
+}
 }  // namespace
 
 void Simulation::set_jj_temperature(Matrix &mObj, const std::string &label,
@@ -140,6 +148,64 @@ double Simulation::jj_current(Matrix &mObj, const std::string &label) {
 double Simulation::jj_power(Matrix &mObj, const std::string &label) {
   JJ *jj = find_jj(mObj, label);
   return jj ? jj->power() : 0.0;
+}
+
+// -- aether_sims D11: memristor electro-thermal access ----------------------
+
+void Simulation::set_memristor_temperature(Matrix &mObj,
+                                           const std::string &label,
+                                           double T) {
+  if (Memristor *m = find_memristor(mObj, label)) m->set_temperature(T);
+}
+
+void Simulation::set_memristor_g(Matrix &mObj, const std::string &label,
+                                 double g) {
+  if (Memristor *m = find_memristor(mObj, label)) {
+    m->g_ = g < 0.0 ? 0.0 : (g > 1.0 ? 1.0 : g);
+    m->gPrevAccept_ = m->gPrev2_ = m->g_;
+    // Re-seed the RHS correction so the next solve sees the new state at
+    // the device's present voltage.
+    m->eN_ = m->vPrev_ - m->r0_ * m->i_model(m->vPrev_, m->g_);
+  }
+}
+
+double Simulation::memristor_g(Matrix &mObj, const std::string &label) {
+  Memristor *m = find_memristor(mObj, label);
+  return m ? m->g_ : 0.0;
+}
+
+double Simulation::memristor_temperature(Matrix &mObj,
+                                         const std::string &label) {
+  Memristor *m = find_memristor(mObj, label);
+  return m ? m->tLoc_ : 0.0;
+}
+
+double Simulation::memristor_voltage(Matrix &mObj, const std::string &label) {
+  Memristor *m = find_memristor(mObj, label);
+  return m ? m->vPrev_ : 0.0;
+}
+
+double Simulation::memristor_current(Matrix &mObj, const std::string &label) {
+  Memristor *m = find_memristor(mObj, label);
+  if (!m || !m->indexInfo.currentIndex_) return 0.0;
+  return x_.at(m->indexInfo.currentIndex_.value());
+}
+
+double Simulation::memristor_power(Matrix &mObj, const std::string &label) {
+  Memristor *m = find_memristor(mObj, label);
+  return m ? m->power_ : 0.0;
+}
+
+double Simulation::memristor_resistance(Matrix &mObj,
+                                        const std::string &label) {
+  Memristor *m = find_memristor(mObj, label);
+  return m ? m->r_of_g(m->g_) : 0.0;
+}
+
+bool Simulation::memristor_extrapolated(Matrix &mObj,
+                                        const std::string &label) {
+  Memristor *m = find_memristor(mObj, label);
+  return m ? m->extrapolated_ : false;
 }
 
 void Simulation::setup(Input &iObj, Matrix &mObj) {
@@ -310,6 +376,8 @@ void Simulation::setup_b(Matrix &mObj, int64_t i, double step, double factor) {
   handle_inductors(mObj, factor);
   // Handle capacitors
   handle_capacitors(mObj);
+  // Handle memristors (aether_sims D11)
+  handle_memristors(mObj, factor);
   // Handle voltage sources
   handle_vs(mObj, i, step, factor);
   // Handle phase sources
@@ -397,6 +465,47 @@ void Simulation::handle_inductors(Matrix &mObj, double factor) {
       temp.In4_ = temp.In3_;
       temp.In3_ = temp.In2_;
       temp.In2_ = x_.at(temp.indexInfo.currentIndex_.value());
+    }
+  }
+}
+
+void Simulation::handle_memristors(Matrix &mObj, double factor) {
+  // aether_sims D11. Per accepted step: reconstruct the device voltage of
+  // the LAST solve exactly from its own branch relation (V = R0 I + e_n,
+  // valid in both analysis modes by construction), advance the trap state
+  // g with the paper's exact exponential update over dt, then refresh the
+  // Thevenin RHS correction e_n for the NEXT solve. One-step-lag explicit
+  // coupling -- the D8 posture; device dynamics (ms) >> engine steps (ps).
+  for (const auto &j : mObj.components.memristorIndices) {
+    auto &temp = std::get<Memristor>(mObj.components.devices.at(j));
+    const double iPrev =
+        x_.at(temp.indexInfo.currentIndex_.value());
+    const double vPrev = temp.r0_ * iPrev + temp.eN_;
+    temp.iPrev_ = iPrev;
+    temp.vPrev_ = vPrev;
+    temp.power_ = vPrev * iPrev;
+    temp.gPrev2_ = temp.gPrevAccept_;
+    temp.gPrevAccept_ = temp.g_;
+    temp.update_state(vPrev, stepSize_ * factor);
+    if (atyp_ == AnalysisType::Voltage) {
+      b_.at(temp.indexInfo.currentIndex_.value()) = temp.eN_;
+    } else if (atyp_ == AnalysisType::Phase) {
+      // Same BDF2 phase history as a resistor, plus the phase-scaled
+      // Thevenin correction (2h/3)(1/sigma) e_n.
+      if (temp.indexInfo.posIndex_ && !temp.indexInfo.negIndex_) {
+        temp.pn1_ = (x_.at(temp.indexInfo.posIndex_.value()));
+      } else if (!temp.indexInfo.posIndex_ && temp.indexInfo.negIndex_) {
+        temp.pn1_ = (-x_.at(temp.indexInfo.negIndex_.value()));
+      } else {
+        temp.pn1_ = (x_.at(temp.indexInfo.posIndex_.value()) -
+                     x_.at(temp.indexInfo.negIndex_.value()));
+      }
+      b_.at(temp.indexInfo.currentIndex_.value()) =
+          (4.0 / 3.0) * temp.pn1_ - (1.0 / 3.0) * temp.pn2_ +
+          ((2.0 * stepSize_ * factor) / 3.0) * (temp.eN_ / Constants::SIGMA);
+      temp.pn4_ = temp.pn3_;
+      temp.pn3_ = temp.pn2_;
+      temp.pn2_ = temp.pn1_;
     }
   }
 }

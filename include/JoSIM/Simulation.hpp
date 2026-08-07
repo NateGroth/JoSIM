@@ -62,6 +62,8 @@ class Simulation {
   void handle_resistors(Matrix& mObj, double& step);
   void handle_inductors(Matrix& mObj, double factor = 1);
   void handle_capacitors(Matrix& mObj);
+  // aether_sims D11: advance memristor state and refresh branch RHS
+  void handle_memristors(Matrix& mObj, double factor = 1);
   void handle_jj(Matrix& mObj, int64_t& i, double& step, double factor = 1);
   void handle_vs(Matrix& mObj, const int64_t& i, double& step,
                  double factor = 1);
@@ -127,6 +129,23 @@ class Simulation {
   double jj_voltage(Matrix& mObj, const std::string& label);
   double jj_current(Matrix& mObj, const std::string& label);
   double jj_power(Matrix& mObj, const std::string& label);
+
+  // aether_sims D11: per-memristor electro-thermal access by label. The
+  // local element temperature T_loc is a device state fed by the Python
+  // lumped thermal network (same co-sim seam as set_jj_temperature);
+  // memristor_power returns the instantaneous Joule dissipation V*I that
+  // the network integrates. memristor_extrapolated reports the D11
+  // calibration-range flag (65 K operation is EXTRAPOLATED).
+  void set_memristor_temperature(Matrix& mObj, const std::string& label,
+                                 double T);
+  void set_memristor_g(Matrix& mObj, const std::string& label, double g);
+  double memristor_g(Matrix& mObj, const std::string& label);
+  double memristor_temperature(Matrix& mObj, const std::string& label);
+  double memristor_voltage(Matrix& mObj, const std::string& label);
+  double memristor_current(Matrix& mObj, const std::string& label);
+  double memristor_power(Matrix& mObj, const std::string& label);
+  double memristor_resistance(Matrix& mObj, const std::string& label);
+  bool memristor_extrapolated(Matrix& mObj, const std::string& label);
 
   int64_t sim_size() const { return simSize_; }
   double step_size() const { return stepSize_; }

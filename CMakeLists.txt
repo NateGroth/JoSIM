@@ -43,6 +43,7 @@ add_library(josim
             src/Input.cpp
             src/JJ.cpp
             src/Matrix.cpp
+            src/Memristor.cpp
             src/Misc.cpp
             src/Model.cpp
             src/Netlist.cpp

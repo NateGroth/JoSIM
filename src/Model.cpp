@@ -21,14 +21,22 @@ void Model::parse_model(const std::pair<tokens_t, string_o>& s,
   Model temp;
   // The second token is the model label
   temp.modelName(s.first.at(1));
-  // The third token needs to start with "JJ" for this to be valid
-  if (s.first.at(2).compare(0, 2, "JJ") != 0) {
+  // The third token needs to start with "JJ" (upstream) or "MEMRISTOR"
+  // (aether_sims D11) for this to be valid
+  int64_t typeLen = 0;
+  if (s.first.at(2).compare(0, 2, "JJ") == 0) {
+    typeLen = 2;
+  } else if (s.first.at(2).compare(0, 9, "MEMRISTOR") == 0) {
+    typeLen = 9;
+    temp.mtype(1);
+  } else {
     Errors::model_errors(ModelErrors::UNKNOWN_MODEL_TYPE,
                          Misc::vector_to_string(s.first));
   }
   // Create a temporary tokens variable containing the model parameters
   tokens_t tokens(s.first.begin() + 2, s.first.end());
-  tokens = Misc::tokenize(Misc::vector_to_string(tokens).substr(2), "=(), ");
+  tokens =
+      Misc::tokenize(Misc::vector_to_string(tokens).substr(typeLen), "=(), ");
   // Add any tokens surrounded by curly braces to the same token
   int par_open = -1;
   for (int i = 0; i < tokens.size(); ++i) {
@@ -56,6 +64,58 @@ void Model::parse_model(const std::pair<tokens_t, string_o>& s,
                          Misc::vector_to_string(s.first));
   }
   double value = 0.0;
+  // aether_sims D11: memristor model cards have their own parameter set
+  // (numeric-only), parsed here so the JJ branch below stays untouched.
+  if (temp.mtype() == 1) {
+    for (int64_t i = 0; i < tokens.size(); i += 2) {
+      value = parse_param(tokens.at(i + 1), p, s.second);
+      if (std::isnan(value)) {
+        Errors::model_errors(ModelErrors::BAD_MODEL_DEFINITION,
+                             Misc::vector_to_string(s.first));
+      }
+      const std::string& k = tokens.at(i);
+      if (k == "RMAX") {
+        temp.mrRmax(value);
+      } else if (k == "RMIN") {
+        temp.mrRmin(value);
+      } else if (k == "MMAX") {
+        temp.mrMmax(value);
+      } else if (k == "MMIN") {
+        temp.mrMmin(value);
+      } else if (k == "KP0") {
+        temp.mrKp0(value);
+      } else if (k == "ALPHA") {
+        temp.mrAlpha(value);
+      } else if (k == "KD0") {
+        temp.mrKd0(value);
+      } else if (k == "ETAD") {
+        temp.mrEtad(value);
+      } else if (k == "VLOG") {
+        temp.mrVlog(value);
+      } else if (k == "XI") {
+        temp.mrXi(value);
+      } else if (k == "TCAL") {
+        temp.mrTcal(value);
+      } else if (k == "AH") {
+        temp.mrAh(value);
+      } else if (k == "AL") {
+        temp.mrAl(value);
+      } else if (k == "TRMIN") {
+        temp.mrTrmin(value);
+      } else if (k == "TRMAX") {
+        temp.mrTrmax(value);
+      } else if (k == "TSCALE") {
+        temp.mrTscale(value);
+      } else {
+        Errors::model_errors(ModelErrors::PARAM_TYPE_ERROR,
+                             Misc::vector_to_string(
+                                 tokens_t{Misc::vector_to_string(s.first),
+                                          "\nThe parameter: ", k}));
+      }
+    }
+    models.emplace_back(std::make_pair(temp, s.second));
+    return;
+  }
   // Loop through the parameter tokens
   for (int64_t i = 0; i < tokens.size(); i += 2) {
     if (tokens.at(i) == "CPR") {
