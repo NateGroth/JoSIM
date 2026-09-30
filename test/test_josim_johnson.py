@@ -122,18 +122,35 @@ def kramers_overdamped(ic: float, rn: float, i: float, temp: float) -> float:
     return wc / (2 * math.pi) * math.sqrt(1 - i * i) * math.exp(-du / (KB * temp))
 
 
-def equipartition_theory(r: float, l: float, h: float, tau: float, nf: int = 200001) -> float:
-    """<i_L^2> L / kT the discrete system delivers: the source's PSD (held, box-averaged over the step, folded to the step grid)
-    through the BDF2 transfer function of the inductor current. The deficit from 1 is the finite noise bandwidth and the step."""
+def equipartition_theory(r: float, l: float, h: float, tau: float, nf: int = 400001) -> float:
+    """<i_L^2> L / kT the discrete system delivers (the expectation over the hold phase): the step input the engine receives -- the
+    step average of samples held on the grid k tau, variance (4kT/R)(neb/2) -- through the BDF2 transfer function of the inductor
+    current. The sample grid is aligned with the step grid (td = 0): tau = N h holds each sample for N steps (a zero-order-hold-N
+    sequence, Dirichlet kernel), h = M tau averages M samples per step (white, variance / M) -- every neb >= 1 / h delivers the same
+    step input. Otherwise (incommensurate) the random-phase form: the held PSD box-averaged over the step and folded to the step
+    grid. The deficit from 1 is the finite noise bandwidth and the step. (A reading printed on the hold grid itself -- print step a
+    multiple of tau > h -- samples one phase of a cyclostationary output and may sit above this.)"""
     alpha = 2 * h * r / l
-    f = np.linspace(0, 1 / (2 * h), nf)
-    z = np.exp(1j * 2 * np.pi * f * h)
-    H = alpha / ((3 + alpha) - 4 / z + 1 / z ** 2)
-    S = np.zeros_like(f)
-    for mm in range(-100, 101):
-        fm = f + mm / h
-        S += np.sinc(fm * tau) ** 2 * np.sinc(fm * h) ** 2
-    return float(np.trapezoid(S * np.abs(H) ** 2, f) * 4 / r * l)
+    w = np.linspace(-np.pi, np.pi, nf)
+    z = np.exp(1j * w)
+    H2 = np.abs(alpha / ((3 + alpha) - 4 / z + 1 / z ** 2)) ** 2
+    s2 = 2.0 / (r * tau)                       # the per-sample variance / kT
+    n_hold, m_avg = tau / h, h / tau
+    if abs(n_hold - round(n_hold)) < 1e-9 and round(n_hold) >= 1:
+        n = int(round(n_hold))
+        with np.errstate(invalid="ignore", divide="ignore"):
+            D = np.where(np.abs(np.sin(w / 2)) < 1e-12, float(n * n), (np.sin(n * w / 2) / np.sin(w / 2)) ** 2) / n
+        su = s2 * D
+    elif abs(m_avg - round(m_avg)) < 1e-9 and round(m_avg) >= 1:
+        su = np.full_like(w, s2 / round(m_avg))
+    else:
+        f = w / (2 * np.pi * h)
+        S = np.zeros_like(f)
+        for mm in range(-100, 101):
+            fm = f + mm / h
+            S += np.sinc(fm * tau) ** 2 * np.sinc(fm * h) ** 2
+        su = s2 * (tau / h) * S
+    return float(np.trapezoid(su * H2, w) / (2 * np.pi) * l)
 
 
 # ---------------------------------------------------------------------------------------------------------------- circuits
