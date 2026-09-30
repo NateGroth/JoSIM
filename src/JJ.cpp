@@ -91,8 +91,26 @@ JJ::JJ(const std::pair<tokens_t, string_o>& s, const NodeConfig& ncon,
   netlistInfo.label_ = s.first.at(0);
   // Add the label to the known labels list
   lm.emplace(s.first.at(0));
+  // aether_sims T33-R1 (R0.2): the shunt's noise temperature is the run's --
+  // the instance TEMP= or else .temp -- whether or not the card is
+  // temperature-dependent (set_model's parse-time update_temperature used to
+  // overwrite it with the card's T=, 4.2 K when the card gave none). A card
+  // that carries T= must agree with it: the lint below fails the run.
+  const auto tNoise = temp_;
   // Set the model for this JJ instance
   set_model(t, iObj.netlist.models_new, s.second);
+  if (tNoise) {
+    const double tc = model_.t();
+    const double tn = tNoise.value();
+    if (model_.tGiven() &&
+        std::abs(tc - tn) > 1e-9 * std::max(1.0, std::abs(tn))) {
+      Errors::invalid_component_errors(
+          ComponentErrors::JJ_TEMPERATURE_MISMATCH,
+          s.first.at(0) + " (card T=" + Misc::precise_to_string(tc) +
+              " K, noise temperature " + Misc::precise_to_string(tn) + " K)");
+    }
+    temp_ = tNoise;
+  }
   // Set the phase constant
   if (at_ == AnalysisType::Voltage) {
     // If voltage mode set this to (3 * hbar) / (4 * h * eV)

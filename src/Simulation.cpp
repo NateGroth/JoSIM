@@ -20,13 +20,21 @@ Simulation::Simulation(Input &iObj, Matrix &mObj) {
   // smaller step if requested. Behaviour-identical to the original loop; the
   // body is now factored into prepare()/trans_sim()/finish() so the stepped
   // path can reuse it (aether_sims D4).
+  requestedStep_ = iObj.transSim.tstep();
   while (needsTR_) {
     prepare(iObj, mObj);
     trans_sim(mObj);
     if (needsTR_) {
       reduce_step(iObj, mObj);
+      ++halvings_;
     }
     finish();
+  }
+  // aether_sims T33-R1: the run-log line of the step the engine took.
+  if (!iObj.argMin) {
+    std::cout << "Transient step: " << stepSize_ << " s (requested "
+              << requestedStep_ << " s, " << halvings_ << " halving"
+              << (halvings_ == 1 ? "" : "s") << ")" << std::endl;
   }
 }
 
@@ -37,6 +45,7 @@ Simulation::Simulation(Input &iObj, Matrix &mObj, bool deferRun) {
   // No reduce_step retry here -- keep dt small enough (the global restart is a
   // P3 concern).
   (void)deferRun;
+  requestedStep_ = iObj.transSim.tstep();
   prepare(iObj, mObj);
   run_startup(mObj);
 }
@@ -313,6 +322,7 @@ void Simulation::reduce_and_restart(Input &iObj, Matrix &mObj) {
   // then re-prepare and re-run the startup. The caller restarts step() at i=0.
   finish();
   reduce_step(iObj, mObj);
+  ++halvings_;
   prepare(iObj, mObj);
   run_startup(mObj);
 }

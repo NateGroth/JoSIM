@@ -166,6 +166,7 @@ void Model::parse_model(const std::pair<tokens_t, string_o>& s,
       } else if (tokens.at(i) == "T") {
         temp.t(value);
         temp.tDep(true);
+        temp.tGiven(true);
       } else if (tokens.at(i) == "TC") {
         temp.tc(value);
         temp.tDep(true);

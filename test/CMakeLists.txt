@@ -131,3 +131,15 @@ add_integration_test(
   NAME test_output
   CIR syntax/test_output.cir
 )
+
+# aether_sims T33-R1: the Johnson source against synthetic truth (equipartition, PSD, step invariance,
+# Ambegaokar-Halperin I-V, escape rate) through josim-cli. Needs a Python 3 with numpy; skipped (77) otherwise.
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+  add_test(NAME "johnson::synthetic_truth"
+           WORKING_DIRECTORY "${PROJECT_BINARY_DIR}"
+           COMMAND ${Python3_EXECUTABLE} "${PROJECT_SOURCE_DIR}/test/test_josim_johnson.py"
+                   --josim $<TARGET_FILE:josim-cli> --neb 1e13 --quick
+                   --out "${PROJECT_BINARY_DIR}/johnson_synthetic_truth.json")
+  set_tests_properties("johnson::synthetic_truth" PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 1800)
+endif()

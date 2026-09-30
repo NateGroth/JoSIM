@@ -39,6 +39,10 @@ class Simulation {
   bool startup_;
   bool kluReady_ = false;  // KLU factored and not yet freed (aether_sims D4)
   double stepSize_, prstep_, prstart_;
+  // aether_sims T33-R1: the step the transient was requested at, and how many
+  // times the engine halved it (reduce_step restarts) before it completed.
+  double requestedStep_ = 0.0;
+  int64_t halvings_ = 0;
 #ifdef SLU
   LUSolve lu;
 #else
@@ -149,6 +153,9 @@ class Simulation {
 
   int64_t sim_size() const { return simSize_; }
   double step_size() const { return stepSize_; }
+  // aether_sims T33-R1: the run-log of the engine's effective step.
+  double requested_step() const { return requestedStep_; }
+  int64_t halvings() const { return halvings_; }
 };
 }  // namespace JoSIM
 #endif

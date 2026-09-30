@@ -3,6 +3,8 @@
 
 #include "JoSIM/Input.hpp"
 
+#include <cstdlib>
+
 #include <cstring>
 #include <ctime>
 #include <filesystem>
@@ -130,7 +132,13 @@ std::vector<tokens_t> Input::read_input(LineInput& input, string_o fileName) {
 }
 
 void Input::parse_input(string_o fileName) {
-  srand(time(NULL));
+  // aether_sims T33-R1: JOSIM_SEED makes a CLI run's noise reproducible (the
+  // Python binding re-seeds with pyjosim.seed_noise after parse instead).
+  if (const char* es = std::getenv("JOSIM_SEED")) {
+    srand(static_cast<unsigned int>(std::strtoul(es, nullptr, 10)));
+  } else {
+    srand(time(NULL));
+  }
   // Create a seperate thread that will be used for printing creation progress
   std::thread printingThread;
   // Variable to store the tokenized input

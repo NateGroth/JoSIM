@@ -25,6 +25,8 @@ class Model {
   double icFct_;
   double phiOff_;
   bool tDep_;
+  // aether_sims T33-R1: the card carries an explicit T= (the junction lint)
+  bool tGiven_;
   // aether_sims D2: selectable Ic(T) law. ictemp_ = 0 -> BCS / Ambegaokar-
   // Baratoff (default, preserves upstream behaviour); 1 -> YBCO weak link
   // Ic(T) = Ic0 (1 - T/Tc)^wlpow_.
@@ -88,6 +90,7 @@ class Model {
         icFct_(Constants::PI / 4),
         phiOff_(0),
         tDep_(false),
+        tGiven_(false),
         ictemp_(0),
         wlpow_(1.0),
         icctrl_(0),
@@ -147,6 +150,8 @@ class Model {
   void phiOff(const double& o) { phiOff_ = o; }
   bool tDep() { return tDep_; }
   void tDep(bool b) { tDep_ = b; }
+  bool tGiven() const { return tGiven_; }
+  void tGiven(bool b) { tGiven_ = b; }
   int64_t ictemp() const { return ictemp_; }
   void ictemp(const int64_t& i) { ictemp_ = i; }
   double wlpow() const { return wlpow_; }

@@ -318,6 +318,15 @@ void Errors::invalid_component_errors(ComponentErrors errorCode,
           "CTRL must name another junction (its expanded JoSIM label, e.g. "
           "CTRL=B2) whose branch current drives this junction's ICCTRL law.";
       throw std::runtime_error(formattedMessage);
+    case ComponentErrors::JJ_TEMPERATURE_MISMATCH:
+      // aether_sims T33-R1: a junction's noise must be the bath's
+      formattedMessage += "Junction temperature mismatch: " + message.value_or("") + "\n";
+      formattedMessage +=
+          "The junction's model card carries T= but the run's noise temperature "
+          "(.temp, or the instance TEMP=) differs. The shunt's Johnson noise "
+          "would not be at the temperature its Ic(T) law is evaluated at. Set "
+          "the card's T= equal to .temp (or remove it from the card).";
+      throw std::runtime_error(formattedMessage);
     default:
       formattedMessage += "Unknown invalid component error.\n";
       formattedMessage += "Please contact the developer.";

@@ -268,11 +268,21 @@ void Function::parse_noise(const tokens_t& t, const Input& iObj,
     timeValues_.at(0) = parse_param(t.at(1), iObj.parameters, s);
   if (t.size() >= 3)
     timeValues_.at(1) = parse_param(t.at(2), iObj.parameters, s);
-  miscValues_.emplace_back(0.0);
-  miscValues_.emplace_back(ampValues_.at(0) * Misc::grand() /
-                           sqrt(2.0 * timeValues_.back()));
-  miscValues_.emplace_back(timeValues_.at(0));
-  miscValues_.emplace_back(timeValues_.at(0) + timeValues_.at(1));
+  // aether_sims T33-R1 (Johnson fix). The held process: sample k lives on
+  // [TD + k TSTEP, TD + (k+1) TSTEP) with variance VA^2 / (2 TSTEP) -- the
+  // one-sided PSD of a held process is 2 var TSTEP = VA^2 = 4kT/R at f << 1 /
+  // TSTEP (the noise effective bandwidth .neb = 1 / TSTEP; the per-sample
+  // variance is the Johnson variance in its Nyquist band, 4kT (neb / 2) / R).
+  // The stream key is drawn from the engine's global RNG (pyjosim.seed_noise
+  // / JOSIM_SEED seed it) in construction order; the samples themselves come
+  // from a counter-based generator, so a sample's value does not depend on
+  // when or how often the engine evaluates the source.
+  noiseSigma_ = ampValues_.at(0) / sqrt(2.0 * timeValues_.at(1));
+  noiseH_ = tstep;
+  uint64_t k0 = static_cast<uint64_t>(rand());
+  uint64_t k1 = static_cast<uint64_t>(rand());
+  uint64_t k2 = static_cast<uint64_t>(rand());
+  noiseKey_ = Misc::splitmix64((k0 << 42) ^ (k1 << 21) ^ k2);
   if (iObj.argVerb) {
     if (ampValues_.at(0) == 0.0) {
       Errors::function_errors(FunctionErrors::NOISE_VA_ZERO, t.at(1));
@@ -408,26 +418,55 @@ double Function::return_cus(double& x) {
   return 0.0;
 }
 
+double Function::noise_sample(int64_t k) {
+  // Two-entry cache: a step's window touches at most two samples when the
+  // engine step is below the hold time, and consecutive windows share one.
+  if (noiseCk_[0] == k) return noiseCs_[0];
+  if (noiseCk_[1] == k) return noiseCs_[1];
+  // Sample k = elements 2k and 2k+1 of the SplitMix64 stream seeded with the
+  // key: two 53-bit uniforms, Box-Muller.
+  const uint64_t g = 0x9E3779B97F4A7C15ULL;
+  uint64_t a = Misc::splitmix64(noiseKey_ + (2 * static_cast<uint64_t>(k)) * g);
+  uint64_t b =
+      Misc::splitmix64(noiseKey_ + (2 * static_cast<uint64_t>(k) + 1) * g);
+  const double inv53 = 1.0 / 9007199254740992.0;  // 2^-53
+  double u1 = (static_cast<double>(a >> 11) + 1.0) * inv53;  // (0, 1]
+  double u2 = static_cast<double>(b >> 11) * inv53;          // [0, 1)
+  double s = noiseSigma_ * sqrt(-2.0 * log(u1)) * cos(2.0 * Constants::PI * u2);
+  noiseCk_[noiseCnext_] = k;
+  noiseCs_[noiseCnext_] = s;
+  noiseCnext_ ^= 1;
+  return s;
+}
+
 double Function::return_noise(double& x) {
-  if (x < timeValues_.front()) {
-    return ampValues_.at(1);
+  // aether_sims T33-R1 (Johnson fix): the average of the held process over
+  // the engine step that ends at x -- the step's exact charge. A pure function
+  // of x (and the pass's step), so a second stamp of the same step (two-node
+  // elements) and any re-evaluation return the same value.
+  const double td = timeValues_.at(0);
+  const double tau = timeValues_.at(1);
+  if (!(x > td)) return 0.0;
+  if (x == noiseLastX_) return noiseLastV_;
+  double a = x - noiseH_;
+  if (a < td) a = td;
+  const double b = x;
+  int64_t ka = static_cast<int64_t>(std::floor((a - td) / tau));
+  int64_t kb = static_cast<int64_t>(std::floor((b - td) / tau));
+  if (kb < ka) kb = ka;
+  double v;
+  if (ka == kb || !(b > a)) {
+    v = noise_sample(kb);
   } else {
-    if (x >= miscValues_.at(3)) {
-      miscValues_.at(0) = miscValues_.at(1);
-      miscValues_.at(1) =
-          ampValues_.at(0) * Misc::grand() / sqrt(2.0 * timeValues_.back());
-      miscValues_.at(2) = miscValues_.at(3);
-      if (x == miscValues_.at(3))
-        miscValues_.at(3) = miscValues_.at(2) + timeValues_.back();
-      if (x > miscValues_.at(3)) miscValues_.at(3) = x;
-    }
-    double& y2 = miscValues_.at(1);
-    double& y1 = miscValues_.at(0);
-    double& x2 = miscValues_.at(3);
-    double& x1 = miscValues_.at(2);
-    // Calculate function value and return it
-    return y1 + ((y2 - y1) / (x2 - x1)) * (x - x1);
+    double w_first = (td + (ka + 1) * tau) - a;
+    double w_last = b - (td + kb * tau);
+    double q = noise_sample(ka) * w_first + noise_sample(kb) * w_last;
+    for (int64_t k = ka + 1; k < kb; ++k) q += noise_sample(k) * tau;
+    v = q / (b - a);
   }
+  noiseLastX_ = x;
+  noiseLastV_ = v;
+  return v;
 }
 
 double Function::return_pws(double& x) {

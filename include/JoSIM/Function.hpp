@@ -3,6 +3,8 @@
 #ifndef JOSIM_FUNCTION_HPP
 #define JOSIM_FUNCTION_HPP
 
+#include <cstdint>
+#include <limits>
 #include <vector>
 
 #include "Input.hpp"
@@ -26,6 +28,23 @@ class Function {
   std::vector<double> timeValues_;
   std::vector<double> ampValues_;
   std::vector<double> miscValues_;
+  // aether_sims T33-R1 (Johnson fix): NOISE(VA TD TSTEP) is a HELD process on
+  // the absolute time grid TD + k*TSTEP -- sample k is N(0, VA^2 / (2 TSTEP)),
+  // a pure function of (noiseKey_, k) -- and the engine sees its exact charge
+  // in every step: value(t) = the average of the held process over
+  // (t - h, t], h the engine step of the pass. Delivered power is then
+  // independent of the step the engine takes (a halved-step restart included),
+  // of TSTEP >= or < h, and of how many times a step evaluates the source (a
+  // two-node element stamps it twice).
+  uint64_t noiseKey_ = 0;
+  double noiseSigma_ = 0.0;  // per-sample standard deviation VA / sqrt(2 TSTEP)
+  double noiseH_ = 0.0;      // the engine step of the pass (parse time)
+  int64_t noiseCk_[2] = {-1, -1};
+  double noiseCs_[2] = {0.0, 0.0};
+  int noiseCnext_ = 0;
+  double noiseLastX_ = std::numeric_limits<double>::quiet_NaN();
+  double noiseLastV_ = 0.0;
+  double noise_sample(int64_t k);
   void parse_pwl(const tokens_t& t, const Input& iObj, const string_o& s);
   void parse_pulse(const tokens_t& t, const Input& iObj, const string_o& s);
   void parse_sin(const tokens_t& t, const Input& iObj, const string_o& s);

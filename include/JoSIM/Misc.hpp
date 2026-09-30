@@ -4,6 +4,7 @@
 #define JOSIM_MISC_HPP
 
 #include <algorithm>
+#include <cstdint>
 #include <iomanip>
 #include <map>
 #include <regex>
@@ -80,6 +81,15 @@ std::string precise_to_string(const T a_value) {
 int64_t numDigits(int64_t number);
 
 double grand();
+
+// aether_sims T33-R1: the SplitMix64 finalizer (Steele, Lea & Flood 2014);
+// the counter-based generator of the NOISE function's held samples.
+inline uint64_t splitmix64(uint64_t x) {
+  x += 0x9E3779B97F4A7C15ULL;
+  x = (x ^ (x >> 30)) * 0xBF58476D1CE4E5B9ULL;
+  x = (x ^ (x >> 27)) * 0x94D049BB133111EBULL;
+  return x ^ (x >> 31);
+}
 }  // namespace Misc
 }  // namespace JoSIM
 #endif

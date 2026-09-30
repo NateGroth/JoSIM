@@ -1,6 +1,7 @@
 // Copyright (c) 2021 Johannes Delport
 // This code is licensed under MIT license (see LICENSE for details)
 
+#include "JoSIM/EngineId.hpp"
 #include "JoSIM/CliOptions.hpp"
 
 #include <cstring>
@@ -321,6 +322,7 @@ void CliOptions::version_info() {
             << std::endl;
   std::cout << "v" << VERSION << "." << GIT_COMMIT_HASH << " compiled on "
             << __DATE__ << " at " << __TIME__ << std::endl;
+  std::cout << "Engine: " << JoSIM::ENGINE_ID << std::endl;
 #ifndef NDEBUG
   std::cout << "(Debug)" << std::endl;
 #endif

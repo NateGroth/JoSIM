@@ -69,7 +69,8 @@ enum class ComponentErrors : int64_t {
   MISSING_INDUCTOR,
   UNKNOWN_DEVICE_TYPE,
   SPECIAL_CHARS,
-  UNKNOWN_CONTROL_JJ
+  UNKNOWN_CONTROL_JJ,
+  JJ_TEMPERATURE_MISMATCH
 };
 
 enum class ControlErrors : int64_t {
