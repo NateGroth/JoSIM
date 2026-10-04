@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -86,9 +87,12 @@ def main() -> int:
         check(f"card_wins[{tag}]", rcw == 0 and rc5 == 0 and win == c5 and len(win) > 0, bytes=len(win))
         check(f"field_acts[{tag}]", fld != base, differs=fld != base)
         if not temp:
-            ok_log = (f"Engine: {ENGINE}" in logf and "CTRL coupling: tau_c = 1e-11 s (.ctrltau) on 1 junction(s); "
-                      "0 card CTRLLAG kept; 0 memoryless" in logf.replace("1.0e-11", "1e-11")
-                      and "1 card CTRLLAG kept" in logw and "CTRL coupling" not in log0)
+            mf = re.search(r"CTRL coupling: tau_c = (\S+) s \(\.ctrltau\) on 1 junction\(s\); 0 card CTRLLAG kept; "
+                           r"0 memoryless", logf)
+            mw = re.search(r"CTRL coupling: tau_c = (\S+) s \(\.ctrltau\) on 0 junction\(s\); 1 card CTRLLAG kept; "
+                           r"0 memoryless", logw)
+            ok_log = bool(f"Engine: {ENGINE}" in logf and mf and mw and abs(float(mf.group(1)) - 1e-11) < 1e-22
+                          and "CTRL coupling" not in log0)
             check("run_log", ok_log, field_line=[ln for ln in logf.splitlines() if "CTRL coupling" in ln],
                   card_line=[ln for ln in logw.splitlines() if "CTRL coupling" in ln])
     rcb, _, logb = run(a.josim, netlist(field="-1p"))

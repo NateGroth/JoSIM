@@ -357,6 +357,8 @@ void Errors::control_errors(ControlErrors errorCode, string_o message) {
     case ControlErrors::PLOT_ERROR:
       throw std::runtime_error(formattedMessage);
     case ControlErrors::INV_CONTROL:
+      // aether_sims T35: carry the caller's detail (e.g. a bad .CTRLTAU).
+      formattedMessage += message.value_or("");
       throw std::runtime_error(formattedMessage);
     case ControlErrors::DC_ERROR:
       throw std::runtime_error(formattedMessage);
