@@ -128,6 +128,22 @@ double Simulation::jj_ic(Matrix &mObj, const std::string &label) {
   return jj ? jj->model_.ic() : 0.0;
 }
 
+double Simulation::jj_ctrl_lag(Matrix &mObj, const std::string &label) {
+  JJ *jj = find_jj(mObj, label);
+  return jj ? jj->model_.ctrlLag() : 0.0;
+}
+
+int64_t Simulation::jj_ctrl_lag_source(Matrix &mObj,
+                                       const std::string &label) {
+  JJ *jj = find_jj(mObj, label);
+  return jj ? jj->ctrlLagSource_ : -1;
+}
+
+double Simulation::jj_ctrl_current(Matrix &mObj, const std::string &label) {
+  JJ *jj = find_jj(mObj, label);
+  return jj ? jj->ictrlFilt_ : 0.0;
+}
+
 double Simulation::jj_phase(Matrix &mObj, const std::string &label) {
   JJ *jj = find_jj(mObj, label);
   if (!jj) return 0.0;

@@ -142,4 +142,11 @@ if(Python3_Interpreter_FOUND)
                    --josim $<TARGET_FILE:josim-cli> --neb 1e13 --quick
                    --out "${PROJECT_BINARY_DIR}/johnson_synthetic_truth.json")
   set_tests_properties("johnson::synthetic_truth" PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 1800)
+  # aether_sims T35 (W0.2 b): the run-level coupling time constant .ctrltau against the card's CTRLLAG, byte for byte.
+  add_test(NAME "ctrl_tau::semantics"
+           WORKING_DIRECTORY "${PROJECT_BINARY_DIR}"
+           COMMAND ${Python3_EXECUTABLE} "${PROJECT_SOURCE_DIR}/test/test_josim_ctrl_tau.py"
+                   --josim $<TARGET_FILE:josim-cli>
+                   --out "${PROJECT_BINARY_DIR}/ctrl_tau_semantics.json")
+  set_tests_properties("ctrl_tau::semantics" PROPERTIES TIMEOUT 600)
 endif()

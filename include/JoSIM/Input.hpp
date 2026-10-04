@@ -25,6 +25,10 @@ class Input {
   Transient transSim;
   std::optional<double> globalTemp;
   double neB = 1E12;
+  // aether_sims T35: the run-level coupling time constant (.ctrltau, seconds):
+  // a first-order response on every CTRL= input whose card does not set
+  // CTRLLAG. Absent = the memoryless D8 law of record (bit-exact).
+  std::optional<double> ctrlTau;
   std::vector<tokens_t> fileLines, controls;
   std::vector<std::string> relevantX;
   std::unordered_map<ParameterName, Parameter> parameters;

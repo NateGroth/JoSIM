@@ -75,6 +75,9 @@ class JJ : public BasicComponent {
   // carries CTRLLAG > 0 (first-order lag on the coupling law). Stateful by
   // design -- carries the same reduce_step caveat as thermal state.
   double ictrlFilt_ = 0.0;
+  // aether_sims T35: where the coupling lag came from -- 0 none (the
+  // memoryless D8 law), 1 the card's CTRLLAG, 2 the run-level .ctrltau.
+  int64_t ctrlLagSource_ = 0;
   // aether_sims T4-D9: washboard-tilt offset of the signed coupling law
   // (added to the supercurrent term; makes Ic+ != Ic-).
   double ctrlOffs_ = 0.0;

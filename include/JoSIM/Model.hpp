@@ -48,6 +48,9 @@ class Model {
   // the control current seen by the law is a low-pass of the branch current.
   // 0 (default) = memoryless D8 semantics, bit-exact legacy behavior.
   double ctrlLag_;
+  // aether_sims T35: true when the card itself carries CTRLLAG (a lever of
+  // record); the run-level .ctrltau field fills only cards without it.
+  bool ctrlLagSet_;
   // aether_sims T4-D9: odd fraction s of the signed coupling law
   // Ic_eff+- = Ic0*[(1-s)*f_even(|x|) + s*(1 -+ x)]; 0 = legacy even law.
   double ctrlOdd_;
@@ -98,6 +101,7 @@ class Model {
         ctrlCoef_({1.0}),
         ctrlTab_({}),
         ctrlLag_(0.0),
+        ctrlLagSet_(false),
         ctrlOdd_(0.0),
         mtype_(0),
         // D11 defaults: paper Table 1 at 150 K with Kd0/etad/Vlog/xi held
@@ -162,6 +166,8 @@ class Model {
   void ctrlNorm(const double& n) { ctrlNorm_ = n; }
   double ctrlLag() const { return ctrlLag_; }
   void ctrlLag(const double& l) { ctrlLag_ = l; }
+  bool ctrlLagSet() const { return ctrlLagSet_; }
+  void ctrlLagSet(const bool& b) { ctrlLagSet_ = b; }
   double ctrlOdd() const { return ctrlOdd_; }
   void ctrlOdd(const double& s) { ctrlOdd_ = s; }
   const std::vector<double>& ctrlCoef() const { return ctrlCoef_; }

@@ -191,6 +191,8 @@ void Model::parse_model(const std::pair<tokens_t, string_o>& s,
         // aether_sims T3: first-order coupling lag tau (seconds); 0 = the
         // memoryless D8 law.
         temp.ctrlLag(value);
+        // aether_sims T35: a card value is kept under the .ctrltau field.
+        temp.ctrlLagSet(true);
       } else if (tokens.at(i) == "PHI") {
         temp.phiOff(value);
       } else {

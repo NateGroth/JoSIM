@@ -128,6 +128,12 @@ class Simulation {
   void set_jj_control_current(Matrix& mObj, const std::string& label,
                               double ictrl);
   double jj_ic(Matrix& mObj, const std::string& label);
+  // aether_sims T35: a junction's coupling lag (s) as applied, its source
+  // (0 memoryless, 1 card CTRLLAG, 2 the .ctrltau field), and the control
+  // current its Ic(Ictrl) law saw at the last solve (the filter's output).
+  double jj_ctrl_lag(Matrix& mObj, const std::string& label);
+  int64_t jj_ctrl_lag_source(Matrix& mObj, const std::string& label);
+  double jj_ctrl_current(Matrix& mObj, const std::string& label);
   // Live per-junction state read from the current solution (call after step()).
   double jj_phase(Matrix& mObj, const std::string& label);
   double jj_voltage(Matrix& mObj, const std::string& label);

@@ -4,6 +4,7 @@
 #include "JoSIM/Matrix.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <iostream>
 #include <string>
 
@@ -12,6 +13,7 @@
 #include "JoSIM/Function.hpp"
 #include "JoSIM/Misc.hpp"
 #include "JoSIM/Noise.hpp"
+#include "JoSIM/Parameters.hpp"
 #include "JoSIM/ProgressBar.hpp"
 
 using namespace JoSIM;
@@ -68,8 +70,60 @@ void Matrix::create_matrix(Input& iObj) {
                                        want);
     }
   }
+  // aether_sims T35: the run-level coupling time constant (.ctrltau).
+  apply_ctrl_tau(iObj);
   // Create the compressed storage row format required for simulation
   create_csr();
+}
+
+void Matrix::apply_ctrl_tau(Input& iObj) {
+  // aether_sims T35 (W0.2 b): every CTRL=-coupled junction whose card does
+  // not carry CTRLLAG takes the run-level time constant tau_c (seconds) on
+  // its control input -- the same first-order filter as the card's
+  // CTRLLAG (JJ::update_control_current_lagged), so .ctrltau X on an
+  // untagged card is bit-identical to CTRLLAG=X on the card. A card value
+  // wins (a lever of record) and is counted. tau_c = 0 is the memoryless
+  // law (explicit passthrough). Re-applied on a reduce_step rebuild: the
+  // junctions are re-created from their cards each time.
+  for (auto& i : iObj.controls) {
+    if (i.front() != "CTRLTAU") continue;
+    if (i.size() != 2) {
+      Errors::control_errors(ControlErrors::INV_CONTROL,
+                             ".CTRLTAU takes exactly one value (seconds)");
+    }
+    double v = parse_param(i.back(), iObj.parameters);
+    if (!(v >= 0.0) || !std::isfinite(v)) {
+      Errors::control_errors(ControlErrors::INV_CONTROL,
+                             ".CTRLTAU must be a finite value >= 0 (seconds)");
+    }
+    iObj.ctrlTau = v;
+  }
+  ctrlTauField = 0;
+  ctrlTauCard = 0;
+  ctrlTauNone = 0;
+  for (const auto& cp : components.ctrlCouplings) {
+    auto& jj = std::get<JJ>(components.devices.at(cp.first));
+    if (jj.model_.ctrlLagSet()) {
+      jj.ctrlLagSource_ = 1;
+      ++ctrlTauCard;
+    } else if (iObj.ctrlTau) {
+      jj.model_.ctrlLag(iObj.ctrlTau.value());
+      jj.ctrlLagSource_ = 2;
+      ++ctrlTauField;
+    } else {
+      jj.ctrlLagSource_ = 0;
+      ++ctrlTauNone;
+    }
+  }
+  if (!iObj.argMin && (iObj.ctrlTau || ctrlTauCard > 0)) {
+    std::cout << "CTRL coupling: tau_c = "
+              << (iObj.ctrlTau ? Misc::precise_to_string(iObj.ctrlTau.value())
+                               : std::string("(none)"))
+              << " s (.ctrltau) on " << ctrlTauField
+              << " junction(s); " << ctrlTauCard
+              << " card CTRLLAG kept; " << ctrlTauNone << " memoryless"
+              << std::endl;
+  }
 }
 
 void Matrix::setup(Input& iObj) {

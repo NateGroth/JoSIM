@@ -4,7 +4,9 @@
 #define JOSIM_ENGINEID_HPP
 
 namespace JoSIM {
-constexpr const char* ENGINE_ID = "aether-josim-v1-johnson";
+// v2 (T35 W0.2): v1 (the Johnson source fix) + the run-level coupling time
+// constant .ctrltau; without .ctrltau every run is bit-identical to v1.
+constexpr const char* ENGINE_ID = "aether-josim-v2-ctrl-tau";
 }  // namespace JoSIM
 
 #endif  // JOSIM_ENGINEID_HPP

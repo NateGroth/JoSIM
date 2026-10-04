@@ -44,6 +44,11 @@ class Matrix {
   void setup(Input& iObj);
   void create_components(Input& iObj);
   void handle_mutual_inductance(Input& iObj);
+  // aether_sims T35: apply the run-level .ctrltau field to the resolved
+  // CTRL= couplings; counts of junctions that took the field / kept a card
+  // CTRLLAG / run memoryless.
+  void apply_ctrl_tau(Input& iObj);
+  int64_t ctrlTauField = 0, ctrlTauCard = 0, ctrlTauNone = 0;
   void reduce_step(Input& iObj);
   void create_csr();
   void create_nz();
